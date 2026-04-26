@@ -22,18 +22,19 @@ export default function BillDayPicker({
   }, [])
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} className="relative shrink-0 flex items-center gap-2">
+      <span className="text-zinc-400 dark:text-zinc-500 text-xs">Pick a day</span>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs font-medium transition-colors rounded-lg px-2.5 py-1.5 ${
+        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors rounded-lg px-2.5 py-1.5 ${
           selected
             ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950'
             : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
         }`}
       >
-        <span className="text-zinc-400 dark:text-zinc-500 font-normal text-xs">day</span>
-        {selected ?? '?'}
+        <span className="font-normal opacity-60">day</span>
+        {selected ?? '–'}
       </button>
 
       {open && (
