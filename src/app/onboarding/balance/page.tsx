@@ -22,6 +22,13 @@ export default async function BalancePage() {
         </div>
       </div>
 
+      {/* Explainer card */}
+      <div className="rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3.5">
+        <p className="text-zinc-500 dark:text-zinc-400 text-sm leading-relaxed">
+          Dalowance works out how much you can spend each day until your next paycheck — automatically adjusting for bills and what you&apos;ve already spent. Takes 30 seconds to set up.
+        </p>
+      </div>
+
       <div>
         <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white">What&apos;s in your account right now?</h1>
         <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-sm">Check your bank app and type the number.</p>

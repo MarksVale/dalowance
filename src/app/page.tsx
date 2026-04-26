@@ -83,6 +83,12 @@ export default async function LandingPage({ searchParams }: Props) {
           )}
         </p>
 
+        {!isSignup && (
+          <a href="/auth/forgot-password" className="text-zinc-400 dark:text-zinc-500 text-sm hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            Forgot password?
+          </a>
+        )}
+
       </div>
     </main>
   )

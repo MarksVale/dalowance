@@ -75,6 +75,23 @@ export default async function HomePage() {
   const elapsedDays = Math.round((new Date(y, m, d).getTime() - prevPaycheckDate.getTime()) / 86_400_000)
   const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / cycleDays) * 100))
 
+  // Payday + stale detection
+  const isPayday = d === profile.paycheck_day
+  const daysSinceUpdate = Math.floor((Date.now() - new Date(recentBalances[0].recorded_at).getTime()) / 86_400_000)
+
+  // Spent this cycle
+  const { data: spendLogs } = await supabase
+    .from('spend_logs')
+    .select('amount')
+    .eq('user_id', user.id)
+    .gte('logged_at', prevPaycheckDate.toISOString())
+  const spentThisCycle = (spendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
+
+  // Negative allowance recovery
+  const recoveryDaily = allowance < 0
+    ? Math.max(0, Math.round(((allowance * daysRemaining + Math.abs(allowance)) / daysRemaining) * 100) / 100)
+    : null
+
   // What's next
   const upcomingEvents = getUpcomingEvents({
     bills: activeBills,
@@ -89,16 +106,14 @@ export default async function HomePage() {
 
   // Last 7 days history
   const showHistory = recentBalances.length >= 2
-  const historyData = (() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const day = new Date(y, m, d - (6 - i))
-      const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
-      const update = recentBalances.find(b => new Date(b.recorded_at) < dayEnd)
-      if (!update) return { day, allowance: null }
-      const { allowance: a } = calcAllowance({ balance: Number(update.balance), ...calcParams, asOf: day })
-      return { day, allowance: a }
-    })
-  })()
+  const historyData = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(y, m, d - (6 - i))
+    const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
+    const update = recentBalances.find(b => new Date(b.recorded_at) < dayEnd)
+    if (!update) return { day, allowance: null }
+    const { allowance: a } = calcAllowance({ balance: Number(update.balance), ...calcParams, asOf: day })
+    return { day, allowance: a }
+  })
 
   return (
     <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col">
@@ -112,16 +127,33 @@ export default async function HomePage() {
         <Settings size={16} />
       </Link>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-10">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
 
         {/* The Number block */}
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col items-center gap-2 text-center">
           <p className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-widest">you can spend today</p>
           <TheNumber amount={allowance} color={color} />
           {delta !== null && delta !== 0 && (
             <p className={`text-sm font-medium ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {delta > 0 ? '↑' : '↓'} {formatAllowance(Math.abs(delta))} vs last update
             </p>
+          )}
+          {spentThisCycle > 0 && (
+            <p className="text-zinc-400 dark:text-zinc-500 text-sm">
+              Spent this cycle: <span className="text-zinc-600 dark:text-zinc-300">€{spentThisCycle.toFixed(2)}</span>
+            </p>
+          )}
+          {allowance < 0 && (
+            <div className="flex flex-col items-center gap-0.5 mt-1">
+              <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                You&apos;re €{Math.abs(allowance).toFixed(2)} over budget.
+              </p>
+              <p className="text-red-500 dark:text-red-400 text-xs">
+                {recoveryDaily === 0
+                  ? 'Spend nothing for the rest of this cycle to recover.'
+                  : `Keep daily spending under €${recoveryDaily?.toFixed(2)} to recover.`}
+              </p>
+            </div>
           )}
         </div>
 
@@ -134,9 +166,13 @@ export default async function HomePage() {
           <ProgressBar percent={cyclePercent} />
         </div>
 
-        {/* Action buttons */}
-        <div className="w-full max-w-sm">
-          <HomeActions currentBalance={latestBalance} />
+        {/* Interactive actions (banners + buttons + modals) */}
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          <HomeActions
+            currentBalance={latestBalance}
+            isPayday={isPayday}
+            daysSinceUpdate={daysSinceUpdate}
+          />
         </div>
 
         {/* What's next */}
