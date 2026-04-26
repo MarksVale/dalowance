@@ -71,7 +71,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
       {showStale && (
         <button
           onClick={() => setModal('sync')}
-          className="w-full max-w-sm rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 px-4 py-3 text-left text-sm text-amber-600 dark:text-amber-400"
+          className="w-full rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 px-4 py-2.5 text-left text-sm text-amber-600 dark:text-amber-400"
         >
           Balance last updated {daysSinceUpdate} {daysSinceUpdate === 1 ? 'day' : 'days'} ago — tap to sync
         </button>

@@ -2,12 +2,11 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { calcAllowance, allowanceColor, formatAllowance, formatPaycheckDate, getUpcomingEvents } from '@/lib/calc'
+import { calcAllowance, allowanceColor, formatAllowance, formatPaycheckDate, calcForecast } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 import HomeActions from './HomeActions'
-import WhatsNext from './WhatsNext'
-import History from './History'
+import ForecastCalendar from './ForecastCalendar'
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -92,28 +91,8 @@ export default async function HomePage() {
     ? Math.max(0, Math.round(((allowance * daysRemaining + Math.abs(allowance)) / daysRemaining) * 100) / 100)
     : null
 
-  // What's next
-  const upcomingEvents = getUpcomingEvents({
-    bills: activeBills,
-    paycheckDay: calcParams.paycheckDay,
-    paycheckAmount: calcParams.paycheckAmount,
-  })
-  const totalMonthlyBills = activeBills.reduce((s, b) => s + b.amount, 0)
-  const estimatedDailyAfterPaycheck = Math.max(
-    0,
-    Math.round((calcParams.paycheckAmount - totalMonthlyBills - calcParams.bufferAmount) / 30 * 100) / 100
-  )
-
-  // Last 7 days history
-  const showHistory = recentBalances.length >= 2
-  const historyData = Array.from({ length: 7 }, (_, i) => {
-    const day = new Date(y, m, d - (6 - i))
-    const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
-    const update = recentBalances.find(b => new Date(b.recorded_at) < dayEnd)
-    if (!update) return { day, allowance: null }
-    const { allowance: a } = calcAllowance({ balance: Number(update.balance), ...calcParams, asOf: day })
-    return { day, allowance: a }
-  })
+  // Forecast calendar
+  const forecastSegments = calcForecast({ balance: latestBalance, ...calcParams })
 
   return (
     <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col">
@@ -176,13 +155,8 @@ export default async function HomePage() {
           />
         </div>
 
-        {/* What's next */}
-        <WhatsNext events={upcomingEvents} estimatedDailyAfterPaycheck={estimatedDailyAfterPaycheck} />
-
-        {/* Last 7 days */}
-        {showHistory && (
-          <History data={historyData} paycheckAmount={calcParams.paycheckAmount} />
-        )}
+        {/* Forecast calendar */}
+        <ForecastCalendar segments={forecastSegments} paycheckAmount={calcParams.paycheckAmount} />
 
       </div>
 

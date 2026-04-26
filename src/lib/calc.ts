@@ -65,61 +65,122 @@ export function formatAllowance(amount: number): string {
   return `${sign}€${Math.abs(amount).toFixed(2)}`
 }
 
-export type UpcomingEvent = {
-  type: 'bill' | 'paycheck'
-  name: string
-  amount: number
-  date: Date
-  daysUntil: number
+export type ForecastPeriod = {
+  type: 'period'
+  fromDate: Date
+  toDate: Date
+  dailyAllowance: number
+  days: number
+  isToday: boolean
 }
 
-export function getUpcomingEvents({
-  bills,
+export type ForecastBill = {
+  type: 'bill'
+  date: Date
+  name: string
+  amount: number
+}
+
+export type ForecastPaycheck = {
+  type: 'paycheck'
+  date: Date
+  amount: number
+}
+
+export type ForecastSegment = ForecastPeriod | ForecastBill | ForecastPaycheck
+
+export function calcForecast({
+  balance,
   paycheckDay,
   paycheckAmount,
+  bufferAmount,
+  bills,
 }: {
-  bills: Array<{ name: string; amount: number; day_of_month: number }>
+  balance: number
   paycheckDay: number
   paycheckAmount: number
-}): UpcomingEvent[] {
+  bufferAmount: number
+  bills: Array<{ name: string; amount: number; day_of_month: number }>
+}): ForecastSegment[] {
   const now = new Date()
-  const d = now.getDate()
-  const m = now.getMonth()
   const y = now.getFullYear()
+  const m = now.getMonth()
+  const d = now.getDate()
   const today = new Date(y, m, d)
 
-  const nextPaycheckDate =
+  const paycheck1 =
     d <= paycheckDay
       ? new Date(y, m, paycheckDay)
       : new Date(y, m + 1, paycheckDay)
+  const paycheck2 = new Date(paycheck1.getFullYear(), paycheck1.getMonth() + 1, paycheckDay)
 
-  const pm = nextPaycheckDate.getMonth()
-  const py = nextPaycheckDate.getFullYear()
-  const sameMonth = m === pm && y === py
+  type RawEvent =
+    | { type: 'bill'; date: Date; name: string; amount: number }
+    | { type: 'paycheck'; date: Date; amount: number }
 
-  const events: UpcomingEvent[] = []
+  const events: RawEvent[] = [
+    { type: 'paycheck', date: paycheck1, amount: paycheckAmount },
+    { type: 'paycheck', date: paycheck2, amount: paycheckAmount },
+  ]
 
   for (const bill of bills) {
-    let billDate: Date | null = null
-    if (sameMonth) {
-      if (bill.day_of_month >= d && bill.day_of_month < paycheckDay)
-        billDate = new Date(y, m, bill.day_of_month)
-    } else {
-      if (bill.day_of_month >= d)
-        billDate = new Date(y, m, bill.day_of_month)
-      else if (bill.day_of_month < paycheckDay)
-        billDate = new Date(py, pm, bill.day_of_month)
-    }
-    if (billDate) {
-      const daysUntil = Math.round((billDate.getTime() - today.getTime()) / 86_400_000)
-      events.push({ type: 'bill', name: bill.name, amount: bill.amount, date: billDate, daysUntil })
+    let ey = y, em = m
+    for (let i = 0; i < 6; i++) {
+      const billDate = new Date(ey, em, bill.day_of_month)
+      if (billDate.getTime() >= paycheck2.getTime()) break
+      if (billDate.getMonth() === em && billDate.getTime() > today.getTime()) {
+        events.push({ type: 'bill', date: billDate, name: bill.name, amount: bill.amount })
+      }
+      em++
+      if (em > 11) { em = 0; ey++ }
     }
   }
 
-  const daysUntilPaycheck = Math.round((nextPaycheckDate.getTime() - today.getTime()) / 86_400_000)
-  events.push({ type: 'paycheck', name: 'Paycheck', amount: paycheckAmount, date: nextPaycheckDate, daysUntil: daysUntilPaycheck })
+  events.sort((a, b) => {
+    const diff = a.date.getTime() - b.date.getTime()
+    if (diff !== 0) return diff
+    return a.type === 'paycheck' ? -1 : 1
+  })
 
-  return events.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 3)
+  const segments: ForecastSegment[] = []
+  let periodStart = today
+  let currentBalance = balance
+
+  for (const event of events) {
+    const periodEnd = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() - 1)
+
+    if (periodEnd.getTime() >= periodStart.getTime()) {
+      const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000) + 1
+      const { allowance } = calcAllowance({
+        balance: currentBalance,
+        paycheckDay,
+        paycheckAmount,
+        bufferAmount,
+        bills,
+        asOf: periodStart,
+      })
+      segments.push({
+        type: 'period',
+        fromDate: new Date(periodStart),
+        toDate: new Date(periodEnd),
+        dailyAllowance: allowance,
+        days,
+        isToday: periodStart.getTime() === today.getTime(),
+      })
+    }
+
+    if (event.type === 'paycheck') {
+      segments.push({ type: 'paycheck', date: event.date, amount: event.amount })
+      currentBalance = paycheckAmount
+      periodStart = new Date(event.date)
+    } else {
+      segments.push({ type: 'bill', date: event.date, name: event.name, amount: event.amount })
+      currentBalance = Math.max(0, currentBalance - event.amount)
+      periodStart = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() + 1)
+    }
+  }
+
+  return segments
 }
 
 export function formatPaycheckDate(date: Date): string {
