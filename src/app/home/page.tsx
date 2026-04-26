@@ -1,0 +1,165 @@
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { Settings } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { calcAllowance, allowanceColor, formatAllowance, formatPaycheckDate, getUpcomingEvents } from '@/lib/calc'
+import TheNumber from './TheNumber'
+import ProgressBar from './ProgressBar'
+import HomeActions from './HomeActions'
+import WhatsNext from './WhatsNext'
+import History from './History'
+
+export default async function HomePage() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('paycheck_day, paycheck_amount, buffer_amount')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile?.paycheck_day || !profile?.paycheck_amount) redirect('/onboarding/balance')
+
+  const { data: recentBalances } = await supabase
+    .from('balance_updates')
+    .select('balance, recorded_at')
+    .eq('user_id', user.id)
+    .order('recorded_at', { ascending: false })
+    .limit(50)
+
+  if (!recentBalances?.length) redirect('/onboarding/balance')
+
+  const { data: billsRaw } = await supabase
+    .from('bills')
+    .select('name, amount, day_of_month')
+    .eq('user_id', user.id)
+    .eq('active', true)
+
+  const activeBills = (billsRaw ?? []).map(b => ({
+    name: b.name as string,
+    amount: Number(b.amount),
+    day_of_month: Number(b.day_of_month),
+  }))
+
+  const calcParams = {
+    paycheckDay: profile.paycheck_day!,
+    paycheckAmount: Number(profile.paycheck_amount),
+    bufferAmount: Number(profile.buffer_amount ?? 0),
+    bills: activeBills,
+  }
+
+  const latestBalance = Number(recentBalances[0].balance)
+  const { allowance, daysRemaining, nextPaycheckDate } = calcAllowance({ balance: latestBalance, ...calcParams })
+  const color = allowanceColor(allowance, calcParams.paycheckAmount)
+
+  // Delta vs previous update
+  let delta: number | null = null
+  if (recentBalances[1]) {
+    const { allowance: prevAllowance } = calcAllowance({ balance: Number(recentBalances[1].balance), ...calcParams })
+    delta = Math.round((allowance - prevAllowance) * 100) / 100
+  }
+
+  // Pay cycle progress
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const d = now.getDate()
+  const prevPaycheckDate =
+    d >= profile.paycheck_day!
+      ? new Date(y, m, profile.paycheck_day!)
+      : new Date(y, m - 1, profile.paycheck_day!)
+  const cycleDays = Math.max(1, Math.round((nextPaycheckDate.getTime() - prevPaycheckDate.getTime()) / 86_400_000))
+  const elapsedDays = Math.round((new Date(y, m, d).getTime() - prevPaycheckDate.getTime()) / 86_400_000)
+  const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / cycleDays) * 100))
+
+  // What's next
+  const upcomingEvents = getUpcomingEvents({
+    bills: activeBills,
+    paycheckDay: calcParams.paycheckDay,
+    paycheckAmount: calcParams.paycheckAmount,
+  })
+  const totalMonthlyBills = activeBills.reduce((s, b) => s + b.amount, 0)
+  const estimatedDailyAfterPaycheck = Math.max(
+    0,
+    Math.round((calcParams.paycheckAmount - totalMonthlyBills - calcParams.bufferAmount) / 30 * 100) / 100
+  )
+
+  // Last 7 days history
+  const showHistory = recentBalances.length >= 2
+  const historyData = (() => {
+    const today = new Date(y, m, d)
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(y, m, d - (6 - i))
+      const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
+      const update = recentBalances.find(b => new Date(b.recorded_at) < dayEnd)
+      if (!update) return { day, allowance: null }
+      const { allowance: a } = calcAllowance({ balance: Number(update.balance), ...calcParams, asOf: day })
+      return { day, allowance: a }
+    })
+  })()
+
+  return (
+    <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col">
+
+      {/* Settings link */}
+      <Link
+        href="/settings"
+        className="fixed top-4 left-4 z-40 size-9 flex items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+        aria-label="Settings"
+      >
+        <Settings size={16} />
+      </Link>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-10">
+
+        {/* The Number block */}
+        <div className="flex flex-col items-center gap-3 text-center">
+          <p className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-widest">you can spend today</p>
+          <TheNumber amount={allowance} color={color} />
+          {delta !== null && delta !== 0 && (
+            <p className={`text-sm font-medium ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              {delta > 0 ? '↑' : '↓'} {formatAllowance(Math.abs(delta))} vs last update
+            </p>
+          )}
+        </div>
+
+        {/* Days + progress bar */}
+        <div className="w-full max-w-sm flex flex-col gap-2.5">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm text-center">
+            {daysRemaining} more {daysRemaining === 1 ? 'day' : 'days'}, until{' '}
+            {formatPaycheckDate(nextPaycheckDate)}
+          </p>
+          <ProgressBar percent={cyclePercent} />
+        </div>
+
+        {/* Action buttons */}
+        <div className="w-full max-w-sm">
+          <HomeActions currentBalance={latestBalance} />
+        </div>
+
+        {/* What's next */}
+        <WhatsNext events={upcomingEvents} estimatedDailyAfterPaycheck={estimatedDailyAfterPaycheck} />
+
+        {/* Last 7 days */}
+        {showHistory && (
+          <History data={historyData} paycheckAmount={calcParams.paycheckAmount} />
+        )}
+
+      </div>
+
+      <footer className="px-6 py-5 flex items-center justify-center gap-8 border-t border-zinc-200 dark:border-zinc-900">
+        <a href="/settings" className="text-zinc-400 dark:text-zinc-600 text-sm hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors">
+          Settings
+        </a>
+        <form action="/auth/signout" method="POST">
+          <button type="submit" className="text-zinc-400 dark:text-zinc-600 text-sm hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors">
+            Sign out
+          </button>
+        </form>
+      </footer>
+    </main>
+  )
+}
