@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 type Props = {
-  searchParams: Promise<{ mode?: string; error?: string; status?: string }>
+  searchParams: Promise<{ mode?: string; error?: string; status?: string; email?: string }>
 }
 
 export default async function LandingPage({ searchParams }: Props) {
@@ -11,7 +11,7 @@ export default async function LandingPage({ searchParams }: Props) {
 
   if (user) redirect('/home')
 
-  const { mode, error, status } = await searchParams
+  const { mode, error, status, email } = await searchParams
   const isSignup = mode === 'signup'
 
   return (
@@ -36,7 +36,9 @@ export default async function LandingPage({ searchParams }: Props) {
         )}
         {status === 'check-email' && (
           <div className="w-full rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 text-center">
-            Check your email to confirm your account, then sign in.
+            We sent a confirmation link to{' '}
+            <span className="font-semibold">{email ? decodeURIComponent(email) : 'your email'}</span>.
+            Click it, then come back and sign in.
           </div>
         )}
 
