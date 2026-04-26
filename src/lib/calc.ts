@@ -146,24 +146,42 @@ export function calcForecast({
   let periodStart = today
   let currentBalance = balance
 
-  for (const event of events) {
+  for (let ei = 0; ei < events.length; ei++) {
+    const event = events[ei]
     const periodEnd = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() - 1)
 
     if (periodEnd.getTime() >= periodStart.getTime()) {
       const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000) + 1
-      const { allowance } = calcAllowance({
-        balance: currentBalance,
-        paycheckDay,
-        paycheckAmount,
-        bufferAmount,
-        bills,
-        asOf: periodStart,
-      })
+
+      // Find the next paycheck from this point in the event list.
+      // If this event IS a paycheck, use it; otherwise scan forward.
+      const nextPaycheck = event.type === 'paycheck'
+        ? event
+        : events.slice(ei).find(e => e.type === 'paycheck')
+
+      let dailyAllowance = 0
+      if (nextPaycheck) {
+        const daysToPaycheck = Math.max(1, Math.round(
+          (nextPaycheck.date.getTime() - periodStart.getTime()) / 86_400_000
+        ))
+        // Sum all bill events that fall strictly between periodStart and the next paycheck
+        const billsTotal = events
+          .filter(e =>
+            e.type === 'bill' &&
+            e.date.getTime() > periodStart.getTime() &&
+            e.date.getTime() < nextPaycheck.date.getTime()
+          )
+          .reduce((sum, e) => sum + (e as { type: 'bill'; amount: number }).amount, 0)
+        dailyAllowance = Math.round(
+          ((currentBalance - billsTotal - bufferAmount) / daysToPaycheck) * 100
+        ) / 100
+      }
+
       segments.push({
         type: 'period',
         fromDate: new Date(periodStart),
         toDate: new Date(periodEnd),
-        dailyAllowance: allowance,
+        dailyAllowance,
         days,
         isToday: periodStart.getTime() === today.getTime(),
       })
