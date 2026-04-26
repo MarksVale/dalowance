@@ -49,7 +49,7 @@ export async function saveBillsStep(formData: FormData) {
   redirect('/onboarding/done')
 }
 
-export async function saveOnboarding(_: FormData) {
+export async function saveOnboarding() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')

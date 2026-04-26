@@ -23,7 +23,7 @@ export default async function BalancePage() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white">What's in your account right now?</h1>
+        <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white">What&apos;s in your account right now?</h1>
         <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-sm">Check your bank app and type the number.</p>
       </div>
 

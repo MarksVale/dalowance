@@ -145,7 +145,7 @@ export default function BillsForm({
               className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 pl-8 pr-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
             />
           </div>
-          <p className="text-zinc-400 dark:text-zinc-600 text-xs">Safety buffer — won't be included in your daily number.</p>
+          <p className="text-zinc-400 dark:text-zinc-600 text-xs">Safety buffer — won&apos;t be included in your daily number.</p>
         </div>
 
         <div className="flex gap-3">

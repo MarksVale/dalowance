@@ -3,7 +3,6 @@ export type BillInput = { amount: number; day_of_month: number }
 export function calcAllowance({
   balance,
   paycheckDay,
-  paycheckAmount,
   bufferAmount,
   bills,
   asOf,

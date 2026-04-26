@@ -90,7 +90,6 @@ export default async function HomePage() {
   // Last 7 days history
   const showHistory = recentBalances.length >= 2
   const historyData = (() => {
-    const today = new Date(y, m, d)
     return Array.from({ length: 7 }, (_, i) => {
       const day = new Date(y, m, d - (6 - i))
       const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)

@@ -48,7 +48,7 @@ export default async function DonePage({ searchParams }: Props) {
         </div>
       </div>
 
-      <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white">You're set up.</h1>
+      <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white">You&apos;re set up.</h1>
 
       {preview ? (
         <div className="flex flex-col items-center gap-2 py-8 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
