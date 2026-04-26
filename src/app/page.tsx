@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
 type Props = {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ mode?: string; error?: string; status?: string }>
 }
 
 export default async function LandingPage({ searchParams }: Props) {
@@ -11,7 +11,8 @@ export default async function LandingPage({ searchParams }: Props) {
 
   if (user) redirect('/home')
 
-  const { status } = await searchParams
+  const { mode, error, status } = await searchParams
+  const isSignup = mode === 'signup'
 
   return (
     <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col items-center justify-center px-4">
@@ -28,33 +29,57 @@ export default async function LandingPage({ searchParams }: Props) {
         </div>
 
         {/* Status banners */}
-        {status === 'check-email' && (
-          <div className="w-full rounded-lg bg-emerald-950 border border-emerald-800 px-4 py-3 text-sm text-emerald-300 text-center">
-            Check your email for the login link.
+        {error && (
+          <div className="w-full rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-4 py-3 text-sm text-red-600 dark:text-red-400 text-center">
+            {decodeURIComponent(error)}
           </div>
         )}
-        {status === 'error' && (
-          <div className="w-full rounded-lg bg-red-950 border border-red-800 px-4 py-3 text-sm text-red-300 text-center">
-            Something went wrong, try again.
+        {status === 'check-email' && (
+          <div className="w-full rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 text-center">
+            Check your email to confirm your account, then sign in.
           </div>
         )}
 
-        {/* Magic link form */}
+        {/* Form */}
         <form action="/auth/login" method="POST" className="w-full flex flex-col gap-3">
+          <input type="hidden" name="mode" value={isSignup ? 'signup' : 'signin'} />
           <input
             type="email"
             name="email"
             required
+            autoComplete="email"
             placeholder="you@example.com"
+            className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
+          />
+          <input
+            type="password"
+            name="password"
+            required
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
+            placeholder="Password"
+            minLength={6}
             className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
           />
           <button
             type="submit"
             className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
           >
-            Send magic link
+            {isSignup ? 'Create account' : 'Sign in'}
           </button>
         </form>
+
+        {/* Toggle */}
+        <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+          {isSignup ? (
+            <>Already have an account?{' '}
+              <a href="/" className="text-zinc-950 dark:text-white font-medium hover:underline">Sign in</a>
+            </>
+          ) : (
+            <>New here?{' '}
+              <a href="/?mode=signup" className="text-zinc-950 dark:text-white font-medium hover:underline">Create account</a>
+            </>
+          )}
+        </p>
 
       </div>
     </main>
