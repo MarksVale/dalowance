@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData()
-  const email = formData.get('email')?.toString() ?? ''
-  const password = formData.get('password')?.toString() ?? ''
-  const mode = formData.get('mode')?.toString() ?? 'signin'
+  const clean = (s: string) => s.replace(/^﻿/, '').trim()
+  const email = clean(formData.get('email')?.toString() ?? '')
+  const password = clean(formData.get('password')?.toString() ?? '')
+  const mode = clean(formData.get('mode')?.toString() ?? 'signin')
   const origin = request.nextUrl.origin
   const supabase = await createClient()
 
