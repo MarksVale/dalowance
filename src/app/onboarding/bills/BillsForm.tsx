@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Plus, Trash2 } from 'lucide-react'
 import { saveBillsStep } from '../actions'
+import BillDayPicker from './BillDayPicker'
 
 type Bill = { name: string; amount: string; day_of_month: string }
 
@@ -105,15 +106,9 @@ export default function BillsForm({
                     className="w-full bg-transparent pl-4 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none"
                   />
                 </div>
-                <span className="text-zinc-400 dark:text-zinc-600 text-xs shrink-0">on day</span>
-                <input
-                  type="number"
-                  placeholder="1"
-                  min="1"
-                  max="31"
+                <BillDayPicker
                   value={bill.day_of_month}
-                  onChange={e => update(i, 'day_of_month', e.target.value)}
-                  className="w-12 bg-transparent text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none text-right"
+                  onChange={v => update(i, 'day_of_month', v)}
                 />
               </div>
             </div>
