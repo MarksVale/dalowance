@@ -3,16 +3,17 @@
 import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, LayoutList, Zap, X, Minus } from 'lucide-react'
+import { RefreshCw, LayoutList, Zap, X } from 'lucide-react'
 import { saveBalanceUpdate, logSpend } from './actions'
 
 type Props = {
   currentBalance: number
+  allowance: number
   isPayday: boolean
   daysSinceUpdate: number
 }
 
-export default function HomeActions({ currentBalance, isPayday, daysSinceUpdate }: Props) {
+export default function HomeActions({ currentBalance, allowance, isPayday, daysSinceUpdate }: Props) {
   const [modal, setModal] = useState<'spend' | 'sync' | null>(null)
   const [isPending, startTransition] = useTransition()
   const [paydayDismissed, setPaydayDismissed] = useState(true)
@@ -76,35 +77,44 @@ export default function HomeActions({ currentBalance, isPayday, daysSinceUpdate 
         </button>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-2 w-full">
+      {/* Action buttons — 2×2 grid */}
+      <div className="grid grid-cols-2 gap-2 w-full">
+        {/* I spent */}
         <button
           onClick={() => setModal('spend')}
-          className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3.5 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
+          className="flex flex-col items-start justify-between rounded-xl bg-zinc-950 dark:bg-white px-4 pt-3.5 pb-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
         >
-          <Minus size={14} />
-          I spent
+          <span className="text-white/60 dark:text-zinc-950/50 text-xs font-medium tracking-wide uppercase mb-2">I spent</span>
+          <span className="self-stretch rounded-lg bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white text-sm font-semibold px-3 py-2">
+            €{allowance > 0 ? allowance.toFixed(2) : '0.00'}
+          </span>
         </button>
+
+        {/* Sync */}
         <button
           onClick={() => setModal('sync')}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-sm font-medium py-3.5 hover:border-zinc-400 dark:hover:border-zinc-600 hover:text-zinc-950 dark:hover:text-white transition-colors"
+          className="flex flex-col items-start justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 pt-3.5 pb-3 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
         >
-          <RefreshCw size={14} />
-          Sync
+          <span className="text-zinc-400 dark:text-zinc-500 text-xs font-medium tracking-wide uppercase mb-2">Sync</span>
+          <RefreshCw size={18} className="text-zinc-500 dark:text-zinc-400" />
         </button>
+
+        {/* Bills */}
         <Link
           href="/bills"
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-sm font-medium py-3.5 hover:border-zinc-400 dark:hover:border-zinc-600 hover:text-zinc-950 dark:hover:text-white transition-colors"
+          className="flex flex-col items-start justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 pt-3.5 pb-3 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
         >
-          <LayoutList size={14} />
-          Bills
+          <span className="text-zinc-400 dark:text-zinc-500 text-xs font-medium tracking-wide uppercase mb-2">Bills</span>
+          <LayoutList size={18} className="text-zinc-500 dark:text-zinc-400" />
         </Link>
+
+        {/* What if? */}
         <Link
           href="/simulate"
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-sm font-medium py-3.5 hover:border-zinc-400 dark:hover:border-zinc-600 hover:text-zinc-950 dark:hover:text-white transition-colors"
+          className="flex flex-col items-start justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 pt-3.5 pb-3 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
         >
-          <Zap size={14} />
-          What if?
+          <span className="text-zinc-400 dark:text-zinc-500 text-xs font-medium tracking-wide uppercase mb-2">What if?</span>
+          <Zap size={18} className="text-zinc-500 dark:text-zinc-400" />
         </Link>
       </div>
 

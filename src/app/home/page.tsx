@@ -170,6 +170,7 @@ export default async function HomePage() {
         <div className="w-full max-w-sm flex flex-col gap-3">
           <HomeActions
             currentBalance={latestBalance}
+            allowance={allowance}
             isPayday={isPayday}
             daysSinceUpdate={daysSinceUpdate}
           />
