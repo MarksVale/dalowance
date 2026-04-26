@@ -27,14 +27,13 @@ export default function BillDayPicker({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors rounded-lg px-2.5 py-1.5 ${
+        className={`w-10 h-10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center ${
           selected
             ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950'
-            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'
         }`}
       >
-        <span className="font-normal opacity-60">day</span>
-        {selected ?? '–'}
+        {selected ?? '1'}
       </button>
 
       {open && (
