@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { savePaycheckStep } from '../actions'
+import DayPicker from './DayPicker'
 
 const steps = [0, 1, 2, 3]
 
@@ -26,19 +27,9 @@ export default async function PaycheckPage() {
       </div>
 
       <form action={savePaycheckStep} className="flex flex-col gap-5">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <label className="text-zinc-500 text-xs uppercase tracking-wider">Day of month</label>
-          <select
-            name="paycheck_day"
-            required
-            defaultValue={prev.paycheck_day ?? ''}
-            className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors appearance-none cursor-pointer"
-          >
-            <option value="" disabled>Select day</option>
-            {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+          <DayPicker defaultValue={prev.paycheck_day} />
         </div>
 
         <div className="flex flex-col gap-1.5">

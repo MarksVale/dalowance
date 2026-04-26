@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Check, Plus, Pencil, Trash2, X, AlertTriangle } from 'lucide-react'
 import { saveProfileSettings, deleteAccount } from './actions'
 import { createBill, updateBill, deleteBill } from '../bills/actions'
+import DayPicker from '../onboarding/paycheck/DayPicker'
 
 type Bill = { id: string; name: string; amount: number; day_of_month: number; active: boolean }
 type BillModal = { mode: 'add' } | { mode: 'edit'; bill: Bill } | null
@@ -114,17 +115,9 @@ export default function SettingsClient({
         <section className="flex flex-col gap-3">
           <h2 className="text-zinc-500 text-xs uppercase tracking-wider font-medium">Pay cycle</h2>
           <form action={handleSaveProfile} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <label className="text-zinc-500 text-xs uppercase tracking-wider">Payday</label>
-              <select
-                name="paycheck_day"
-                defaultValue={paycheckDay}
-                className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors appearance-none cursor-pointer"
-              >
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                  <option key={d} value={d}>Day {d} of every month</option>
-                ))}
-              </select>
+              <DayPicker defaultValue={paycheckDay} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-zinc-500 text-xs uppercase tracking-wider">Paycheck amount</label>
