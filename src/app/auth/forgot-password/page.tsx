@@ -1,3 +1,5 @@
+import { sendResetEmail } from './actions'
+
 type Props = {
   searchParams: Promise<{ status?: string; error?: string }>
 }
@@ -25,7 +27,7 @@ export default async function ForgotPasswordPage({ searchParams }: Props) {
         )}
 
         {status !== 'sent' && (
-          <form action="/auth/forgot-password" method="POST" className="flex flex-col gap-3">
+          <form action={sendResetEmail} className="flex flex-col gap-3">
             <input
               type="email" name="email" required autoFocus placeholder="you@example.com"
               className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
