@@ -355,7 +355,7 @@ export default function HomeClient({
             <div className="w-full max-w-sm flex flex-col gap-3">
               <p className="text-zinc-500 text-xs uppercase tracking-widest">Save Up</p>
 
-              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex flex-wrap gap-2">
                 {remainingDays.map((day, i) => {
                   const isSelected = selectedSaveUpDay?.getTime() === day.getTime()
                   const isFirst = i === 0
