@@ -95,7 +95,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
       <div className="grid grid-cols-2 gap-2.5 w-full">
         <form
           onSubmit={handleQuickSpend}
-          className="rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-2 py-5 px-4"
+          className="rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-1.5 py-3 px-4"
         >
           <input
             type="number"
@@ -105,7 +105,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
             placeholder="€0.00"
             value={spendAmount}
             onChange={e => setSpendAmount(e.target.value)}
-            className="w-full rounded-xl bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white text-center text-base font-semibold py-2.5 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-full rounded-xl bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white text-center text-base font-semibold py-2 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
           <button type="submit" disabled={isPending || !spendAmount} className="text-white dark:text-zinc-950 text-sm font-semibold disabled:opacity-40 transition-opacity">
             {isPending ? 'Logging…' : 'I spent'}
@@ -117,7 +117,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
 
         <button
           onClick={() => setModal('sync')}
-          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-6 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <RefreshCw size={20} className="text-zinc-500 dark:text-zinc-400" />
           <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Sync</span>
@@ -125,7 +125,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
 
         <Link
           href="/bills"
-          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-6 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <LayoutList size={20} className="text-zinc-500 dark:text-zinc-400" />
           <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Bills</span>
@@ -133,7 +133,7 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
 
         <Link
           href="/simulate"
-          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-6 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+          className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <Zap size={20} className="text-zinc-500 dark:text-zinc-400" />
           <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">What if?</span>
