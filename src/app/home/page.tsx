@@ -56,11 +56,6 @@ export default async function HomePage() {
   const { allowance, daysRemaining, nextPaycheckDate } = calcAllowance({ balance: latestBalance, ...calcParams })
   const color = allowanceColor(allowance, calcParams.paycheckAmount)
 
-  // Delta vs previous balance update
-  const delta = recentBalances.length >= 2
-    ? Number(recentBalances[0].balance) - Number(recentBalances[1].balance)
-    : null
-
   // Pay cycle progress
   const now = new Date()
   const y = now.getFullYear()
