@@ -58,11 +58,16 @@ export default function SimulateClient(props: Props) {
     <main className="min-h-screen bg-white dark:bg-zinc-950 px-4 py-8">
       <div className="max-w-sm mx-auto flex flex-col gap-8">
 
-        <div className="flex items-center gap-3">
-          <Link href="/home" className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-950 dark:hover:text-white transition-colors p-1 -ml-1">
-            <ArrowLeft size={18} />
-          </Link>
-          <h1 className="text-zinc-950 dark:text-white font-semibold text-lg">What if I spend…</h1>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <Link href="/home" className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-950 dark:hover:text-white transition-colors p-1 -ml-1">
+              <ArrowLeft size={18} />
+            </Link>
+            <h1 className="text-zinc-950 dark:text-white font-semibold text-lg">What if I spend today?</h1>
+          </div>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm pl-7">
+            Enter an amount to see how it affects your daily budget for the rest of the month.
+          </p>
         </div>
 
         <div className="relative">
@@ -113,7 +118,7 @@ export default function SimulateClient(props: Props) {
               disabled={isPending}
               className="w-full rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3.5 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
             >
-              {isPending ? 'Saving…' : `Yes, I'm spending €${spend.toFixed(2)}`}
+              {isPending ? 'Saving…' : `Yes, I spent €${spend.toFixed(2)}`}
             </button>
             <Link
               href="/home"
