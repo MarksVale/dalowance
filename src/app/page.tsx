@@ -8,7 +8,6 @@ type Props = {
 export default async function LandingPage({ searchParams }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (user) redirect('/home')
 
   const { mode, error, status, email } = await searchParams
@@ -16,80 +15,34 @@ export default async function LandingPage({ searchParams }: Props) {
 
   return (
     <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-sm flex flex-col items-center gap-8">
+      <div className="w-full max-w-sm flex flex-col gap-8">
 
         {/* Wordmark */}
         <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-zinc-950 dark:text-white">
-            Dalowance
-          </h1>
-          <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-base">
-            Know what you can spend today.
-          </p>
+          <h1 className="text-4xl font-bold tracking-tight text-zinc-950 dark:text-white">Dalowance</h1>
+          <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-base">Know what you can spend today.</p>
         </div>
 
-        {/* Status banners */}
+        {/* Banners */}
         {error && (
-          <div className="w-full rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-4 py-3 text-sm text-red-600 dark:text-red-400 text-center">
+          <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-4 py-3 text-sm text-red-600 dark:text-red-400 text-center">
             {decodeURIComponent(error)}
           </div>
         )}
         {status === 'check-email' && (
-          <div className="w-full rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 text-center">
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 text-center">
             We sent a confirmation link to{' '}
             <span className="font-semibold">{email ? decodeURIComponent(email) : 'your email'}</span>.
-            Click it, then come back and sign in.
+            Click it, then sign in.
           </div>
         )}
 
-        {/* Form */}
-        <form action="/auth/login" method="POST" className="w-full flex flex-col gap-3">
-          <input type="hidden" name="mode" value={isSignup ? 'signup' : 'signin'} />
-          <input
-            type="email"
-            name="email"
-            required
-            autoComplete="email"
-            placeholder="you@example.com"
-            className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
-          />
-          <input
-            type="password"
-            name="password"
-            required
-            autoComplete={isSignup ? 'new-password' : 'current-password'}
-            placeholder="Password"
-            minLength={6}
-            className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
-          />
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
+        {/* Social buttons */}
+        <div className="flex flex-col gap-3">
+          <a
+            href="/auth/oauth?provider=google"
+            className="flex items-center justify-center gap-3 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 text-sm font-medium text-zinc-950 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
           >
-            {isSignup ? 'Create account' : 'Sign in'}
-          </button>
-        </form>
-
-        {/* Toggle */}
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-          {isSignup ? (
-            <>Already have an account?{' '}
-              <a href="/" className="text-zinc-950 dark:text-white font-medium hover:underline">Sign in</a>
-            </>
-          ) : (
-            <>New here?{' '}
-              <a href="/?mode=signup" className="text-zinc-950 dark:text-white font-medium hover:underline">Create account</a>
-            </>
-          )}
-        </p>
-
-        {!isSignup && (
-          <a href="/auth/forgot-password" className="text-zinc-400 dark:text-zinc-500 text-sm hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
-            Forgot password?
-          </a>
-        )}
-
-      </div>
-    </main>
-  )
-}
+            {/* Google icon */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c
