@@ -3,14 +3,16 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt } from 'lucide-react'
+import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt, Plus, Pencil, Trash2 } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
+import { createBill, updateBill, deleteBill } from '@/app/bills/actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 
 type Bill = { name: string; amount: number; day_of_month: number }
+type FullBill = { id: string; name: string; amount: number; day_of_month: number }
 
 type Props = {
   greeting: string
@@ -28,6 +30,7 @@ type Props = {
   daysAgoBalance: number
   calcParams: { paycheckDay: number; paycheckAmount: number; bufferAmount: number; bills: Bill[] }
   formatPaycheckDate: string
+  fullBills: FullBill[]
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -48,6 +51,8 @@ const contextColorMap = {
   zinc: 'text-zinc-500 dark:text-zinc-400',
 }
 
+type BillModalState = { mode: 'add' } | { mode: 'edit'; bill: FullBill } | null
+
 export default function HomeClient({
   greeting,
   contextMessage,
@@ -63,9 +68,13 @@ export default function HomeClient({
   daysAgoBalance,
   calcParams,
   formatPaycheckDate,
+  fullBills,
 }: Props) {
   const [spendModalOpen, setSpendModalOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [billsModalOpen, setBillsModalOpen] = useState(false)
+  const [billFormModal, setBillFormModal] = useState<BillModalState>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedSaveUpDay, setSelectedSaveUpDay] = useState<Date | null>(null)
   const [spendAmount, setSpendAmount] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -76,6 +85,7 @@ export default function HomeClient({
     : null
 
   const typedAmount = parseFloat(spendAmount) || 0
+  const totalMonthly = fullBills.reduce((s, b) => s + b.amount, 0)
 
   function handleSpend(formData: FormData) {
     startTransition(async () => {
@@ -90,6 +100,27 @@ export default function HomeClient({
     startTransition(async () => {
       await saveBalanceUpdate(formData)
       setSyncModalOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleBillSave(formData: FormData) {
+    startTransition(async () => {
+      if (billFormModal?.mode === 'edit') {
+        formData.set('id', billFormModal.bill.id)
+        await updateBill(formData)
+      } else {
+        await createBill(formData)
+      }
+      setBillFormModal(null)
+      router.refresh()
+    })
+  }
+
+  function handleBillDelete(id: string) {
+    startTransition(async () => {
+      await deleteBill(id)
+      setDeletingId(null)
       router.refresh()
     })
   }
@@ -158,13 +189,13 @@ export default function HomeClient({
               <RefreshCw size={20} className="text-zinc-500 dark:text-zinc-400" />
               <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Sync</span>
             </button>
-            <Link
-              href="/settings"
+            <button
+              onClick={() => setBillsModalOpen(true)}
               className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
             >
               <LayoutList size={20} className="text-zinc-500 dark:text-zinc-400" />
               <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Bills</span>
-            </Link>
+            </button>
             <Link
               href="/simulate"
               className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
@@ -369,6 +400,138 @@ export default function HomeClient({
                 className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
               >
                 {isPending ? 'Syncing…' : 'Sync'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bills modal */}
+      {billsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setBillsModalOpen(false) }}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col gap-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-zinc-950 dark:text-white font-semibold">Monthly bills</h2>
+                {fullBills.length > 0 && (
+                  <span className="text-zinc-400 dark:text-zinc-500 text-sm">€{totalMonthly.toFixed(2)}/mo</span>
+                )}
+              </div>
+              <button onClick={() => setBillsModalOpen(false)} className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-950 dark:hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {fullBills.length === 0 ? (
+                <p className="text-zinc-400 dark:text-zinc-600 text-sm text-center py-4">No bills yet.</p>
+              ) : (
+                fullBills.map(bill => (
+                  <div
+                    key={bill.id}
+                    className="flex items-center gap-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-950 dark:text-white text-sm font-medium truncate">{bill.name}</p>
+                      <p className="text-zinc-500 text-xs mt-0.5">day {bill.day_of_month} · €{bill.amount.toFixed(2)}</p>
+                    </div>
+                    {deletingId === bill.id ? (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          onClick={() => handleBillDelete(bill.id)}
+                          disabled={isPending}
+                          className="text-red-400 text-xs font-medium hover:text-red-300 transition-colors"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(null)}
+                          className="text-zinc-400 dark:text-zinc-500 text-xs hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setBillFormModal({ mode: 'edit', bill })}
+                          className="text-zinc-400 dark:text-zinc-600 hover:text-zinc-950 dark:hover:text-white transition-colors p-2"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(bill.id)}
+                          className="text-zinc-400 dark:text-zinc-600 hover:text-red-400 transition-colors p-2"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              <button
+                onClick={() => setBillFormModal({ mode: 'add' })}
+                className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 text-sm py-3.5 hover:border-zinc-500 dark:hover:border-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors mt-1"
+              >
+                <Plus size={14} />
+                Add a bill
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bill add/edit modal */}
+      {billFormModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setBillFormModal(null) }}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-zinc-950 dark:text-white font-semibold">
+                {billFormModal.mode === 'add' ? 'Add a bill' : 'Edit bill'}
+              </h2>
+              <button onClick={() => setBillFormModal(null)} className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-950 dark:hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <form action={handleBillSave} className="flex flex-col gap-3">
+              <input
+                name="name" type="text" required placeholder="Name (e.g. Netflix)"
+                defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.name : ''}
+                autoFocus
+                className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+              />
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
+                  <input
+                    name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00"
+                    defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.amount : ''}
+                    className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 pl-8 pr-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+                  />
+                </div>
+                <select
+                  name="day_of_month" required
+                  defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.day_of_month : ''}
+                  className="w-24 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="" disabled>Day</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>Day {d}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit" disabled={isPending}
+                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 mt-1"
+              >
+                {isPending ? 'Saving…' : billFormModal.mode === 'add' ? 'Add bill' : 'Save changes'}
               </button>
             </form>
           </div>
