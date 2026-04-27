@@ -8,6 +8,7 @@ import { calcAllowance, allowanceColor, formatAllowance } from '@/lib/calc'
 import { saveBalanceUpdate } from '@/app/home/actions'
 
 type Bill = { amount: number; day_of_month: number }
+type SpendEntry = { amount: number; note: string | null; logged_at: string }
 
 type Props = {
   currentBalance: number
@@ -17,6 +18,35 @@ type Props = {
   paycheckAmount: number
   bufferAmount: number
   bills: Bill[]
+  spendHistory: SpendEntry[]
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today.getTime() - 86_400_000)
+  const entryDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+
+  if (entryDay.getTime() === today.getTime()) return 'Today'
+  if (entryDay.getTime() === yesterday.getTime()) return 'Yesterday'
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`
+}
+
+function groupByDay(entries: SpendEntry[]): { label: string; items: SpendEntry[] }[] {
+  const groups: { label: string; items: SpendEntry[] }[] = []
+  for (const entry of entries) {
+    const label = formatDate(entry.logged_at)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) {
+      last.items.push(entry)
+    } else {
+      groups.push({ label, items: [entry] })
+    }
+  }
+  return groups
 }
 
 export default function SimulateClient(props: Props) {
@@ -53,6 +83,8 @@ export default function SimulateClient(props: Props) {
       router.push('/home')
     })
   }
+
+  const groups = groupByDay(props.spendHistory)
 
   return (
     <main className="min-h-screen bg-white dark:bg-zinc-950 px-4 py-8">
@@ -118,7 +150,7 @@ export default function SimulateClient(props: Props) {
               disabled={isPending}
               className="w-full rounded-xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3.5 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
             >
-              {isPending ? 'Saving…' : `Yes, I spent €${spend.toFixed(2)}`}
+              {isPending ? 'Saving…' : `Yes, I will spend €${spend.toFixed(2)}`}
             </button>
             <Link
               href="/home"
@@ -126,6 +158,31 @@ export default function SimulateClient(props: Props) {
             >
               Never mind
             </Link>
+          </div>
+        )}
+
+        {/* Spend history */}
+        {groups.length > 0 && (
+          <div className="flex flex-col gap-4">
+            <p className="text-zinc-500 text-xs uppercase tracking-widest">Spend history</p>
+            {groups.map(group => (
+              <div key={group.label} className="flex flex-col gap-1.5">
+                <p className="text-zinc-400 dark:text-zinc-600 text-xs font-medium">{group.label}</p>
+                {group.items.map((entry, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
+                    <span className="text-zinc-600 dark:text-zinc-400 text-sm truncate flex-1 min-w-0 pr-3">
+                      {entry.note || <span className="text-zinc-400 dark:text-zinc-600 italic">No note</span>}
+                    </span>
+                    <span className="text-zinc-950 dark:text-white text-sm font-semibold tabular-nums shrink-0">
+                      €{entry.amount.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-zinc-400 dark:text-zinc-600 text-xs text-right">
+                  Total: €{group.items.reduce((s, e) => s + e.amount, 0).toFixed(2)}
+                </p>
+              </div>
+            ))}
           </div>
         )}
 
