@@ -144,6 +144,13 @@ export default async function HomePage() {
     bills: activeBills,
   })
 
+  const { data: presetsRaw } = await supabase
+    .from('spend_presets')
+    .select('id, name, amount')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+  const presets = (presetsRaw ?? []).map(p => ({ id: p.id as string, name: p.name as string, amount: Number(p.amount) }))
+
   return (
     <HomeClient
       greeting={greeting}
@@ -164,6 +171,7 @@ export default async function HomePage() {
       formatPaycheckDate={formatPaycheckDate(nextPaycheckDate)}
       fullBills={fullBills}
       streak={streak}
+      presets={presets}
     />
   )
 }
