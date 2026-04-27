@@ -6,14 +6,12 @@ import Link from 'next/link'
 import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt, Plus, Pencil, Trash2 } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
 import { createBill, updateBill, deleteBill } from '@/app/bills/actions'
-import { createPreset, deletePreset } from './actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 
 type Bill = { name: string; amount: number; day_of_month: number }
-type SpendPreset = { id: string; name: string; amount: number }
 type FullBill = { id: string; name: string; amount: number; day_of_month: number }
 
 type Props = {
@@ -25,7 +23,6 @@ type Props = {
   nextPaycheckDate: Date
   cyclePercent: number
   spentToday: number
-  spentYesterday: number
   currentBalance: number
   paycheckAmount: number
   forecastSegments: ForecastSegment[]
@@ -34,8 +31,6 @@ type Props = {
   calcParams: { paycheckDay: number; paycheckAmount: number; bufferAmount: number; bills: Bill[] }
   formatPaycheckDate: string
   fullBills: FullBill[]
-  streak: number
-  presets: SpendPreset[]
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -66,7 +61,6 @@ export default function HomeClient({
   daysRemaining,
   cyclePercent,
   spentToday,
-  spentYesterday,
   currentBalance,
   paycheckAmount,
   forecastSegments,
@@ -75,8 +69,6 @@ export default function HomeClient({
   calcParams,
   formatPaycheckDate,
   fullBills,
-  streak,
-  presets,
 }: Props) {
   const [spendModalOpen, setSpendModalOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
@@ -85,11 +77,6 @@ export default function HomeClient({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedSaveUpDay, setSelectedSaveUpDay] = useState<Date | null>(null)
   const [spendAmount, setSpendAmount] = useState('')
-  const [spendNudgeDismissed, setSpendNudgeDismissed] = useState(false)
-  const [editPresetsMode, setEditPresetsMode] = useState(false)
-  const [addPresetOpen, setAddPresetOpen] = useState(false)
-  const [presetName, setPresetName] = useState('')
-  const [presetAmount, setPresetAmount] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -99,23 +86,6 @@ export default function HomeClient({
 
   const typedAmount = parseFloat(spendAmount) || 0
   const totalMonthly = fullBills.reduce((s, b) => s + b.amount, 0)
-
-  function handleCreatePreset(formData: FormData) {
-    startTransition(async () => {
-      await createPreset(formData)
-      setPresetName('')
-      setPresetAmount('')
-      setAddPresetOpen(false)
-      router.refresh()
-    })
-  }
-
-  function handleDeletePreset(id: string) {
-    startTransition(async () => {
-      await deletePreset(id)
-      router.refresh()
-    })
-  }
 
   function handleSpend(formData: FormData) {
     startTransition(async () => {
@@ -179,36 +149,6 @@ export default function HomeClient({
             </button>
           )}
 
-
-          {/* A2: Spend nudge */}
-          {!spendNudgeDismissed && spentToday === 0 && (
-            <button
-              onClick={() => setSpendModalOpen(true)}
-              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-between gap-2"
-            >
-              <span>Did you spend anything today?</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-zinc-950 dark:text-white font-medium text-xs">Log it →</span>
-                <span
-                  role="button"
-                  onClick={e => { e.stopPropagation(); setSpendNudgeDismissed(true) }}
-                  className="text-zinc-300 dark:text-zinc-700 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
-                >
-                  <X size={14} />
-                </span>
-              </div>
-            </button>
-          )}
-          {!spendNudgeDismissed && spentToday > 0 && spentYesterday === 0 && (
-            <button
-              onClick={() => { setSpendNudgeDismissed(true) }}
-              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-500 dark:text-zinc-500 flex items-center justify-between gap-2"
-            >
-              <span>You didn&apos;t log anything yesterday — did you spend?</span>
-              <X size={14} className="shrink-0 text-zinc-300 dark:text-zinc-700" />
-            </button>
-          )}
-
           {/* B: Greeting + context */}
           <div className="flex flex-col items-center gap-1.5 text-center">
             <p className="text-zinc-950 dark:text-white font-semibold text-lg">{greeting}</p>
@@ -224,14 +164,6 @@ export default function HomeClient({
               </p>
             )}
           </div>
-
-          {/* C2: Streak badge */}
-          {streak >= 1 && (
-            <div className="flex items-center gap-1.5 text-sm text-amber-500 dark:text-amber-400 font-medium">
-              <span>🔥</span>
-              <span>{streak} {streak === 1 ? 'day' : 'days'} under budget</span>
-            </div>
-          )}
 
           {/* D: Progress bar */}
           <div className="w-full max-w-sm flex flex-col items-center gap-2">
@@ -278,7 +210,7 @@ export default function HomeClient({
             <div className="w-full max-w-sm flex flex-col gap-3">
               <p className="text-zinc-500 text-xs uppercase tracking-widest">Save Up</p>
 
-              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex flex-wrap gap-2">
                 {remainingDays.map((day, i) => {
                   const isSelected = selectedSaveUpDay?.getTime() === day.getTime()
                   const isFirst = i === 0
@@ -424,83 +356,6 @@ export default function HomeClient({
                 <X size={18} />
               </button>
             </div>
-            {/* Quick-add presets */}
-            {(presets.length > 0 || editPresetsMode) && (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-wide">Quick-add</span>
-                  <button
-                    type="button"
-                    onClick={() => { setEditPresetsMode(e => !e); setAddPresetOpen(false) }}
-                    className="text-zinc-400 dark:text-zinc-500 text-xs hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    {editPresetsMode ? 'Done' : 'Edit'}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {presets.map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        if (editPresetsMode) {
-                          handleDeletePreset(p.id)
-                        } else {
-                          setSpendAmount(String(p.amount))
-                          const noteInput = document.querySelector('input[name="note"]') as HTMLInputElement | null
-                          if (noteInput) noteInput.value = p.name
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                        editPresetsMode
-                          ? 'bg-red-50 dark:bg-red-950/30 text-red-500 border border-red-200 dark:border-red-900/50'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                      }`}
-                    >
-                      {editPresetsMode && <X size={11} />}
-                      <span>{p.name}</span>
-                      <span className="text-zinc-400 dark:text-zinc-500">€{p.amount.toFixed(2)}</span>
-                    </button>
-                  ))}
-                  {editPresetsMode && !addPresetOpen && (
-                    <button
-                      type="button"
-                      onClick={() => setAddPresetOpen(true)}
-                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                    >
-                      <Plus size={12} /> Add
-                    </button>
-                  )}
-                </div>
-                {addPresetOpen && (
-                  <form action={handleCreatePreset} className="flex gap-2 mt-1">
-                    <input
-                      name="name" required placeholder="Name" value={presetName}
-                      onChange={e => setPresetName(e.target.value)}
-                      className="flex-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
-                    />
-                    <div className="relative w-24">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
-                      <input
-                        name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00"
-                        value={presetAmount} onChange={e => setPresetAmount(e.target.value)}
-                        className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 pl-6 pr-2 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
-                      />
-                    </div>
-                    <button type="submit" disabled={isPending} className="rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-sm px-3 font-medium transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-100 disabled:opacity-50">Save</button>
-                  </form>
-                )}
-              </div>
-            )}
-            {presets.length === 0 && !editPresetsMode && (
-              <button
-                type="button"
-                onClick={() => setEditPresetsMode(true)}
-                className="text-zinc-400 dark:text-zinc-600 text-xs self-start hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
-              >
-                + Add quick-add presets
-              </button>
-            )}
             <form action={handleSpend} className="flex flex-col gap-3">
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
@@ -679,23 +534,22 @@ export default function HomeClient({
                   defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.day_of_month : ''}
                   className="w-24 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <option value="">Day</option>
+                  <option value="" disabled>Day</option>
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>Day {d}</option>
                   ))}
                 </select>
               </div>
               <button
                 type="submit" disabled={isPending}
-                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
+                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 mt-1"
               >
-                {isPending ? 'Saving…' : billFormModal?.mode === 'edit' ? 'Save changes' : 'Add bill'}
+                {isPending ? 'Saving…' : billFormModal.mode === 'add' ? 'Add bill' : 'Save changes'}
               </button>
             </form>
           </div>
         </div>
       )}
-
     </>
   )
 }
