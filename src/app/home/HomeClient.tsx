@@ -162,7 +162,7 @@ export default function HomeClient({
 
           {/* F: Save Up strip */}
           {remainingDays.length > 0 && (
-            <div className="w-full max-w-sm flex flex-col gap-3">
+            <div className="w-full flex flex-col gap-3">
               <p className="text-zinc-500 text-xs uppercase tracking-widest">Save Up</p>
 
               <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
