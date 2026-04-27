@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { calcAllowance, allowanceColor, formatAllowance, formatPaycheckDate, calcForecast } from '@/lib/calc'
+import { calcAllowance, allowanceColor, formatPaycheckDate, calcForecast } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 import HomeActions from './HomeActions'
@@ -54,13 +54,6 @@ export default async function HomePage() {
   const { allowance, daysRemaining, nextPaycheckDate } = calcAllowance({ balance: latestBalance, ...calcParams })
   const color = allowanceColor(allowance, calcParams.paycheckAmount)
 
-  // Delta vs previous update
-  let delta: number | null = null
-  if (recentBalances[1]) {
-    const { allowance: prevAllowance } = calcAllowance({ balance: Number(recentBalances[1].balance), ...calcParams })
-    delta = Math.round((allowance - prevAllowance) * 100) / 100
-  }
-
   // Pay cycle progress
   const now = new Date()
   const y = now.getFullYear()
@@ -106,22 +99,34 @@ export default async function HomePage() {
         <Settings size={16} />
       </Link>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
+      <div className="flex-1 flex flex-col items-center px-6 pt-20 pb-10 gap-7">
 
         {/* The Number block */}
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex flex-col items-center gap-3 text-center">
           <p className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-widest">you can spend today</p>
           <TheNumber amount={allowance} color={color} />
-          {delta !== null && delta !== 0 && (
-            <p className={`text-sm font-medium ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-              {delta > 0 ? '↑' : '↓'} {formatAllowance(Math.abs(delta))} vs last update
-            </p>
-          )}
+
+          {/* Context line: balance · days left · payday date */}
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span className="text-zinc-950 dark:text-white text-sm font-medium">
+              €{latestBalance.toFixed(2)} in account
+            </span>
+            <span className="text-zinc-300 dark:text-zinc-700 text-sm">·</span>
+            <span className="text-zinc-500 dark:text-zinc-400 text-sm">
+              {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left
+            </span>
+            <span className="text-zinc-300 dark:text-zinc-700 text-sm">·</span>
+            <span className="text-zinc-500 dark:text-zinc-400 text-sm">
+              payday {formatPaycheckDate(nextPaycheckDate)}
+            </span>
+          </div>
+
           {spentThisCycle > 0 && (
-            <p className="text-zinc-400 dark:text-zinc-500 text-sm">
-              Spent this cycle: <span className="text-zinc-600 dark:text-zinc-300">€{spentThisCycle.toFixed(2)}</span>
+            <p className="text-zinc-400 dark:text-zinc-500 text-xs">
+              €{spentThisCycle.toFixed(2)} spent this cycle
             </p>
           )}
+
           {allowance < 0 && (
             <div className="flex flex-col items-center gap-0.5 mt-1">
               <p className="text-red-600 dark:text-red-400 text-sm font-medium">
@@ -136,12 +141,8 @@ export default async function HomePage() {
           )}
         </div>
 
-        {/* Days + progress bar */}
-        <div className="w-full max-w-sm flex flex-col gap-2.5">
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm text-center">
-            {daysRemaining} more {daysRemaining === 1 ? 'day' : 'days'}, until{' '}
-            {formatPaycheckDate(nextPaycheckDate)}
-          </p>
+        {/* Progress bar */}
+        <div className="w-full max-w-sm">
           <ProgressBar percent={cyclePercent} />
         </div>
 

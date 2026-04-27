@@ -32,7 +32,7 @@ export default function TheNumber({
   const abs = Math.abs(displayed)
 
   return (
-    <p className={`text-8xl sm:text-9xl font-bold tracking-tight leading-none tabular-nums transition-colors duration-500 ${color}`}>
+    <p className={`text-7xl sm:text-8xl font-bold tracking-tight leading-none tabular-nums transition-colors duration-500 ${color}`}>
       {sign}€{abs.toFixed(2)}
     </p>
   )
