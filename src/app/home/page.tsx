@@ -33,21 +33,25 @@ export default async function HomePage() {
 
   if (!recentBalances?.length) redirect('/onboarding/balance')
 
-  const { data: billsRaw } = await supabase
-    .from('bills')
-    .select('id, name, amount, day_of_month')
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .order('day_of_month', { ascending: true })
+  const [billsResult, recurringResult, presetsResult] = await Promise.all([
+    supabase.from('bills').select('id, name, amount, day_of_month').eq('user_id', user.id).eq('active', true).order('day_of_month', { ascending: true }),
+    supabase.from('recurring_spend').select('id, name, amount, frequency, day_of_week, day_of_month').eq('user_id', user.id).eq('active', true),
+    supabase.from('spend_presets').select('id, name, amount').eq('user_id', user.id).order('created_at', { ascending: true }),
+  ])
 
-  const fullBills = (billsRaw ?? []).map(b => ({
-    id: b.id as string,
-    name: b.name as string,
-    amount: Number(b.amount),
-    day_of_month: Number(b.day_of_month),
+  const fullBills = (billsResult.data ?? []).map(b => ({
+    id: b.id as string, name: b.name as string, amount: Number(b.amount), day_of_month: Number(b.day_of_month),
   }))
-
   const activeBills = fullBills.map(({ name, amount, day_of_month }) => ({ name, amount, day_of_month }))
+
+  type RecurringItem = { id: string; name: string; amount: number; frequency: string; day_of_week: number | null; day_of_month: number | null }
+  const recurringItems: RecurringItem[] = (recurringResult.data ?? []).map(r => ({
+    id: r.id as string, name: r.name as string, amount: Number(r.amount),
+    frequency: r.frequency as string,
+    day_of_week: r.day_of_week != null ? Number(r.day_of_week) : null,
+    day_of_month: r.day_of_month != null ? Number(r.day_of_month) : null,
+  }))
+  const presets = (presetsResult.data ?? []).map(p => ({ id: p.id as string, name: p.name as string, amount: Number(p.amount) }))
 
   const calcParams = {
     paycheckDay: profile.paycheck_day!,
@@ -69,58 +73,52 @@ export default async function HomePage() {
     d >= profile.paycheck_day!
       ? new Date(y, m, profile.paycheck_day!)
       : new Date(y, m - 1, profile.paycheck_day!)
+
   const cycleDays = Math.max(1, Math.round((nextPaycheckDate.getTime() - prevPaycheckDate.getTime()) / 86_400_000))
   const elapsedDays = Math.round((new Date(y, m, d).getTime() - prevPaycheckDate.getTime()) / 86_400_000)
   const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / cycleDays) * 100))
-
   const daysAgoBalance = Math.floor((Date.now() - new Date(recentBalances[0].recorded_at).getTime()) / 86_400_000)
+  const isPayday = d === profile.paycheck_day!
 
   const todayMidnight = new Date(y, m, d).toISOString()
   const yesterdayMidnight = new Date(y, m, d - 1).toISOString()
-
-  const { data: todaySpendLogs } = await supabase
-    .from('spend_logs')
-    .select('amount')
-    .eq('user_id', user.id)
-    .gte('logged_at', todayMidnight)
-
-  const { data: yesterdaySpendLogs } = await supabase
-    .from('spend_logs')
-    .select('amount')
-    .eq('user_id', user.id)
-    .gte('logged_at', yesterdayMidnight)
-    .lt('logged_at', todayMidnight)
-
-  const spentToday = (todaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
-  const spentYesterday = (yesterdaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
-
-  // Spending streak: consecutive complete days where daily spend < allowance
   const cycleStartIso = prevPaycheckDate.toISOString()
-  const { data: cycleLogs } = await supabase
-    .from('spend_logs')
-    .select('amount, logged_at')
-    .eq('user_id', user.id)
-    .gte('logged_at', cycleStartIso)
-    .lt('logged_at', todayMidnight)
 
+  const [todayLogsResult, yesterdayLogsResult, cycleLogsResult] = await Promise.all([
+    supabase.from('spend_logs').select('amount').eq('user_id', user.id).gte('logged_at', todayMidnight),
+    supabase.from('spend_logs').select('amount').eq('user_id', user.id).gte('logged_at', yesterdayMidnight).lt('logged_at', todayMidnight),
+    supabase.from('spend_logs').select('amount, logged_at, category').eq('user_id', user.id).gte('logged_at', cycleStartIso),
+  ])
+
+  const spentToday = (todayLogsResult.data ?? []).reduce((s, l) => s + Number(l.amount), 0)
+  const spentYesterday = (yesterdayLogsResult.data ?? []).reduce((s, l) => s + Number(l.amount), 0)
+
+  // Streak: consecutive complete days under allowance
   const spendByDay: Record<string, number> = {}
-  for (const log of cycleLogs ?? []) {
-    const day = new Date(log.logged_at as string).toLocaleDateString('en-CA') // YYYY-MM-DD in local
+  for (const log of cycleLogsResult.data ?? []) {
+    const day = new Date(log.logged_at as string).toLocaleDateString('en-CA')
     spendByDay[day] = (spendByDay[day] ?? 0) + Number(log.amount)
   }
-
   let streak = 0
-  let checkDate = new Date(y, m, d - 1) // start from yesterday
+  let checkDate = new Date(y, m, d - 1)
   while (checkDate >= prevPaycheckDate) {
     const key = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`
-    const daySpend = spendByDay[key] ?? 0
-    if (daySpend < allowance) {
-      streak++
-      checkDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate() - 1)
-    } else {
-      break
-    }
+    if ((spendByDay[key] ?? 0) < allowance) { streak++; checkDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate() - 1) }
+    else break
   }
+
+  // Category totals this cycle
+  const categoryTotals = { food: 0, transport: 0, fun: 0, other: 0 }
+  for (const log of cycleLogsResult.data ?? []) {
+    const cat = ((log.category as string) ?? 'other') as keyof typeof categoryTotals
+    if (cat in categoryTotals) categoryTotals[cat] += Number(log.amount)
+    else categoryTotals.other += Number(log.amount)
+  }
+
+  // Cycle surplus: how much ahead/behind vs projected spend
+  const totalSpentThisCycle = Object.values(categoryTotals).reduce((a, b) => a + b, 0)
+  const projectedSpendThisCycle = allowance * elapsedDays
+  const cycleSurplus = Math.round((projectedSpendThisCycle - totalSpentThisCycle) * 100) / 100
 
   const forecastSegments = calcForecast({ balance: latestBalance, ...calcParams })
 
@@ -136,20 +134,9 @@ export default async function HomePage() {
   const currentHour = now.getHours()
   const greeting = getGreeting(profile.name ?? null, currentHour)
   const contextMessage = getContextMessage({
-    allowance,
-    paycheckAmount: calcParams.paycheckAmount,
-    daysRemaining,
-    daysAgoBalance,
-    paycheckDay: calcParams.paycheckDay,
-    bills: activeBills,
+    allowance, paycheckAmount: calcParams.paycheckAmount, daysRemaining,
+    daysAgoBalance, paycheckDay: calcParams.paycheckDay, bills: activeBills,
   })
-
-  const { data: presetsRaw } = await supabase
-    .from('spend_presets')
-    .select('id, name, amount')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-  const presets = (presetsRaw ?? []).map(p => ({ id: p.id as string, name: p.name as string, amount: Number(p.amount) }))
 
   return (
     <HomeClient
@@ -172,6 +159,10 @@ export default async function HomePage() {
       fullBills={fullBills}
       streak={streak}
       presets={presets}
+      isPayday={isPayday}
+      cycleSurplus={cycleSurplus}
+      categoryTotals={categoryTotals}
+      recurringItems={recurringItems}
     />
   )
 }
