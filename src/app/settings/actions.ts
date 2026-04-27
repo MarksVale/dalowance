@@ -32,6 +32,7 @@ export async function deleteAccount() {
   await supabase.from('balance_updates').delete().eq('user_id', user.id)
   await supabase.from('spend_logs').delete().eq('user_id', user.id)
   await supabase.from('profiles').delete().eq('id', user.id)
+  await supabase.rpc('delete_user')
   await supabase.auth.signOut()
 
   redirect('/')
