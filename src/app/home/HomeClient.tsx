@@ -23,6 +23,7 @@ type Props = {
   nextPaycheckDate: Date
   cyclePercent: number
   spentToday: number
+  spentYesterday: number
   currentBalance: number
   paycheckAmount: number
   forecastSegments: ForecastSegment[]
@@ -61,6 +62,7 @@ export default function HomeClient({
   daysRemaining,
   cyclePercent,
   spentToday,
+  spentYesterday,
   currentBalance,
   paycheckAmount,
   forecastSegments,
@@ -77,6 +79,7 @@ export default function HomeClient({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedSaveUpDay, setSelectedSaveUpDay] = useState<Date | null>(null)
   const [spendAmount, setSpendAmount] = useState('')
+  const [spendNudgeDismissed, setSpendNudgeDismissed] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -146,6 +149,36 @@ export default function HomeClient({
               className="w-full max-w-sm rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 px-4 py-2.5 text-left text-sm text-amber-600 dark:text-amber-400"
             >
               Balance last updated {daysAgoBalance} days old — tap Sync to stay accurate
+            </button>
+          )}
+
+
+          {/* A2: Spend nudge */}
+          {!spendNudgeDismissed && spentToday === 0 && (
+            <button
+              onClick={() => setSpendModalOpen(true)}
+              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-between gap-2"
+            >
+              <span>Did you spend anything today?</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-zinc-950 dark:text-white font-medium text-xs">Log it →</span>
+                <span
+                  role="button"
+                  onClick={e => { e.stopPropagation(); setSpendNudgeDismissed(true) }}
+                  className="text-zinc-300 dark:text-zinc-700 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+                >
+                  <X size={14} />
+                </span>
+              </div>
+            </button>
+          )}
+          {!spendNudgeDismissed && spentToday > 0 && spentYesterday === 0 && (
+            <button
+              onClick={() => { setSpendNudgeDismissed(true) }}
+              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-500 dark:text-zinc-500 flex items-center justify-between gap-2"
+            >
+              <span>You didn&apos;t log anything yesterday — did you spend?</span>
+              <X size={14} className="shrink-0 text-zinc-300 dark:text-zinc-700" />
             </button>
           )}
 
