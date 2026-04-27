@@ -38,6 +38,19 @@ export default async function SimulatePage() {
     day_of_month: Number(b.day_of_month),
   }))
 
+  const { data: spendLogsRaw } = await supabase
+    .from('spend_logs')
+    .select('amount, note, logged_at')
+    .eq('user_id', user.id)
+    .order('logged_at', { ascending: false })
+    .limit(50)
+
+  const spendHistory = (spendLogsRaw ?? []).map(l => ({
+    amount: Number(l.amount),
+    note: (l.note as string | null) ?? null,
+    logged_at: l.logged_at as string,
+  }))
+
   const currentBalance = Number(latestBalance.balance)
   const paycheckAmount = Number(profile.paycheck_amount)
   const bufferAmount = Number(profile.buffer_amount ?? 0)
@@ -59,6 +72,7 @@ export default async function SimulatePage() {
       paycheckAmount={paycheckAmount}
       bufferAmount={bufferAmount}
       bills={activeBills}
+      spendHistory={spendHistory}
     />
   )
 }
