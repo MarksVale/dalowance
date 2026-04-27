@@ -15,6 +15,7 @@ type Props = {
 
 export default function HomeActions({ currentBalance, allowance, isPayday, daysSinceUpdate }: Props) {
   const [modal, setModal] = useState<'spend' | 'sync' | null>(null)
+  const [spendAmount, setSpendAmount] = useState('')
   const [isPending, startTransition] = useTransition()
   const [paydayDismissed, setPaydayDismissed] = useState(true)
   const router = useRouter()
@@ -35,6 +36,19 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
     startTransition(async () => {
       await logSpend(formData)
       setModal(null)
+      router.refresh()
+    })
+  }
+
+  function handleQuickSpend(e: React.FormEvent) {
+    e.preventDefault()
+    const amount = parseFloat(spendAmount)
+    if (!amount || amount <= 0) return
+    const fd = new FormData()
+    fd.set('amount', String(amount))
+    setSpendAmount('')
+    startTransition(async () => {
+      await logSpend(fd)
       router.refresh()
     })
   }
@@ -79,18 +93,27 @@ export default function HomeActions({ currentBalance, allowance, isPayday, daysS
 
       {/* Action buttons — 2×2 grid */}
       <div className="grid grid-cols-2 gap-2.5 w-full">
-        <button
-          onClick={() => setModal('spend')}
-          className="rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-2 py-6 active:scale-[0.97] transition-transform"
+        <form
+          onSubmit={handleQuickSpend}
+          className="rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-2 py-5 px-4"
         >
-          <Minus size={22} className="text-white dark:text-zinc-950" />
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="text-white dark:text-zinc-950 text-sm font-semibold">I spent</span>
-            {allowance > 0 && (
-              <span className="text-white/40 dark:text-zinc-950/35 text-xs tabular-nums">€{allowance.toFixed(2)}/day</span>
-            )}
-          </div>
-        </button>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0.01"
+            placeholder="€0.00"
+            value={spendAmount}
+            onChange={e => setSpendAmount(e.target.value)}
+            className="w-full rounded-xl bg-white dark:bg-zinc-950 text-zinc-950 dark:text-white text-center text-base font-semibold py-2.5 outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <button type="submit" disabled={isPending || !spendAmount} className="text-white dark:text-zinc-950 text-sm font-semibold disabled:opacity-40 transition-opacity">
+            {isPending ? 'Logging…' : 'I spent'}
+          </button>
+          {allowance > 0 && (
+            <span className="text-white/35 dark:text-zinc-950/30 text-xs tabular-nums">€{allowance.toFixed(2)}/day</span>
+          )}
+        </form>
 
         <button
           onClick={() => setModal('sync')}
