@@ -256,63 +256,76 @@ export default function HomeClient({
             </div>
           )}
 
-          {/* G: Forecast calendar */}
-          <div className="w-full max-w-sm flex flex-col gap-1.5">
-            <p className="text-zinc-500 text-xs uppercase tracking-widest mb-1.5">Until payday</p>
+          {/* G: Forecast — expenses on top, flat daily at bottom */}
+          {(() => {
+            // Split segments into current cycle (before first paycheck) and next cycle
+            const firstPaycheckIdx = forecastSegments.findIndex(s => s.type === 'paycheck')
+            const currentEvents = forecastSegments.slice(1, firstPaycheckIdx) // bills before payday
+            const paycheck = firstPaycheckIdx >= 0 ? forecastSegments[firstPaycheckIdx] : null
+            const afterPaycheck = forecastSegments.slice(firstPaycheckIdx + 1)
+            const nextPeriod = afterPaycheck.find(s => s.type === 'period') as (typeof forecastSegments[0] & { type: 'period' }) | undefined
+            const nextBills = afterPaycheck.filter(s => s.type === 'bill')
 
-            {forecastSegments.map((seg, i) => {
-              if (seg.type === 'period') {
-                const segColor = dailyColor(seg.dailyAllowance, paycheckAmount)
-                if (seg.isCurrentPeriod) {
-                  const label = daysRemaining === 1 ? 'Today' : daysRemaining <= 7 ? 'This week' : 'This month'
-                  return (
-                    <div key={i} className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900 rounded-lg px-3 py-2.5 border-l-2 border-zinc-950 dark:border-white">
-                      <span className="text-zinc-950 dark:text-white text-sm font-medium flex-1 min-w-0">{label}</span>
-                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${segColor}`}>€{seg.dailyAllowance.toFixed(2)}/day</span>
-                      <span className="text-zinc-400 dark:text-zinc-600 text-xs tabular-nums w-8 text-right shrink-0">{seg.days}d</span>
-                    </div>
-                  )
-                }
-                return (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2">
-                    <span className="text-zinc-500 dark:text-zinc-400 text-sm flex-1 min-w-0">{fmtDate(seg.fromDate)} – {fmtDate(seg.toDate)}</span>
-                    <span className={`text-sm font-semibold tabular-nums shrink-0 ${segColor}`}>€{seg.dailyAllowance.toFixed(2)}/day</span>
-                    <span className="text-zinc-400 dark:text-zinc-600 text-xs tabular-nums w-8 text-right shrink-0">{seg.days}d</span>
-                  </div>
-                )
-              }
+            return (
+              <>
+                {/* Current cycle block */}
+                <div className="w-full max-w-sm flex flex-col gap-0">
+                  <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">Until payday</p>
 
-              if (seg.type === 'paycheck') {
-                return (
-                  <div key={i} className="relative flex items-center py-1.5 min-h-[44px]">
-                    <div className="absolute inset-x-0 top-1/2 h-px bg-emerald-200 dark:bg-emerald-900/50" />
-                    <div className="relative z-10 flex items-center gap-2.5 w-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 rounded-lg px-3 py-2">
-                      <Banknote size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span className="text-emerald-700 dark:text-emerald-300 text-sm font-medium flex-1">Paycheck</span>
+                  {/* Bills due before payday */}
+                  {currentEvents.filter(s => s.type === 'bill').map((seg, i) => seg.type === 'bill' && (
+                    <div key={i} className="flex items-center gap-2 px-1 py-2 border-b border-zinc-100 dark:border-zinc-900">
+                      <Receipt size={13} className="text-zinc-400 shrink-0" />
+                      <span className="text-zinc-700 dark:text-zinc-300 text-sm flex-1 truncate">{seg.name}</span>
                       <span className="text-zinc-400 dark:text-zinc-500 text-xs shrink-0">{fmtDate(seg.date)}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 text-sm font-semibold tabular-nums shrink-0">+€{seg.amount.toFixed(2)}</span>
+                      <span className="text-red-500 dark:text-red-400 text-sm font-medium tabular-nums shrink-0">−€{seg.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+
+                  {/* Paycheck */}
+                  {paycheck && paycheck.type === 'paycheck' && (
+                    <div className="flex items-center gap-2 px-1 py-2 border-b border-zinc-100 dark:border-zinc-900">
+                      <Banknote size={13} className="text-emerald-500 shrink-0" />
+                      <span className="text-zinc-700 dark:text-zinc-300 text-sm flex-1">Paycheck</span>
+                      <span className="text-zinc-400 dark:text-zinc-500 text-xs shrink-0">{fmtDate(paycheck.date)}</span>
+                      <span className="text-emerald-500 text-sm font-medium tabular-nums shrink-0">+€{paycheck.amount.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* Flat daily for current cycle */}
+                  <div className="flex items-center justify-between pt-3 px-1">
+                    <span className={`text-2xl font-bold tabular-nums ${color}`}>€{allowance.toFixed(2)}<span className="text-base font-medium">/day</span></span>
+                    <span className="text-zinc-400 dark:text-zinc-500 text-sm">{daysRemaining}d left</span>
+                  </div>
+                </div>
+
+                {/* Next cycle block */}
+                {nextPeriod && (
+                  <div className="w-full max-w-sm flex flex-col gap-0 mt-2">
+                    <p className="text-zinc-500 text-xs uppercase tracking-widest mb-3">After payday</p>
+
+                    {/* Bills in next cycle */}
+                    {nextBills.map((seg, i) => seg.type === 'bill' && (
+                      <div key={i} className="flex items-center gap-2 px-1 py-2 border-b border-zinc-100 dark:border-zinc-900">
+                        <Receipt size={13} className="text-zinc-400 shrink-0" />
+                        <span className="text-zinc-700 dark:text-zinc-300 text-sm flex-1 truncate">{seg.name}</span>
+                        <span className="text-zinc-400 dark:text-zinc-500 text-xs shrink-0">{fmtDate(seg.date)}</span>
+                        <span className="text-red-500 dark:text-red-400 text-sm font-medium tabular-nums shrink-0">−€{seg.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+
+                    {/* Flat daily for next cycle */}
+                    <div className="flex items-center justify-between pt-3 px-1">
+                      <span className={`text-2xl font-bold tabular-nums ${dailyColor(nextPeriod.dailyAllowance, paycheckAmount)}`}>
+                        €{nextPeriod.dailyAllowance.toFixed(2)}<span className="text-base font-medium">/day</span>
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-500 text-sm">{nextPeriod.days}d</span>
                     </div>
                   </div>
-                )
-              }
-
-              if (seg.type === 'bill') {
-                return (
-                  <div key={i} className="relative flex items-center py-1.5 min-h-[44px]">
-                    <div className="absolute inset-x-0 top-1/2 h-px bg-zinc-200 dark:bg-zinc-800" />
-                    <div className="relative z-10 flex items-center gap-2.5 w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-2">
-                      <Receipt size={14} className="text-zinc-500 dark:text-zinc-400 shrink-0" />
-                      <span className="text-zinc-950 dark:text-white text-sm font-medium flex-1 truncate">{seg.name}</span>
-                      <span className="text-zinc-400 dark:text-zinc-500 text-xs shrink-0">{fmtDate(seg.date)}</span>
-                      <span className="text-red-600 dark:text-red-400 text-sm font-semibold tabular-nums shrink-0">−€{seg.amount.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )
-              }
-
-              return null
-            })}
-          </div>
+                )}
+              </>
+            )
+          })()}
 
         </div>
 
@@ -521,22 +534,4 @@ export default function HomeClient({
                   defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.day_of_month : ''}
                   className="w-24 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <option value="" disabled>Day</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>Day {d}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="submit" disabled={isPending}
-                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 mt-1"
-              >
-                {isPending ? 'Saving…' : billFormModal.mode === 'add' ? 'Add bill' : 'Save changes'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
+                  <optio
