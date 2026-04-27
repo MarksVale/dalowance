@@ -6,12 +6,16 @@ import Link from 'next/link'
 import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt, Plus, Pencil, Trash2 } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
 import { createBill, updateBill, deleteBill } from '@/app/bills/actions'
+import { createPreset, deletePreset, createRecurringSpend, deleteRecurringSpend } from './actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 
 type Bill = { name: string; amount: number; day_of_month: number }
+type SpendPreset = { id: string; name: string; amount: number }
+type RecurringItem = { id: string; name: string; amount: number; frequency: string; day_of_week: number | null; day_of_month: number | null }
+type CategoryTotals = { food: number; transport: number; fun: number; other: number }
 type FullBill = { id: string; name: string; amount: number; day_of_month: number }
 
 type Props = {
@@ -23,6 +27,7 @@ type Props = {
   nextPaycheckDate: Date
   cyclePercent: number
   spentToday: number
+  spentYesterday: number
   currentBalance: number
   paycheckAmount: number
   forecastSegments: ForecastSegment[]
@@ -31,6 +36,12 @@ type Props = {
   calcParams: { paycheckDay: number; paycheckAmount: number; bufferAmount: number; bills: Bill[] }
   formatPaycheckDate: string
   fullBills: FullBill[]
+  streak: number
+  presets: SpendPreset[]
+  isPayday: boolean
+  cycleSurplus: number
+  categoryTotals: CategoryTotals
+  recurringItems: RecurringItem[]
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -61,6 +72,7 @@ export default function HomeClient({
   daysRemaining,
   cyclePercent,
   spentToday,
+  spentYesterday,
   currentBalance,
   paycheckAmount,
   forecastSegments,
@@ -69,6 +81,12 @@ export default function HomeClient({
   calcParams,
   formatPaycheckDate,
   fullBills,
+  streak,
+  presets,
+  isPayday,
+  cycleSurplus,
+  categoryTotals,
+  recurringItems,
 }: Props) {
   const [spendModalOpen, setSpendModalOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
@@ -77,6 +95,15 @@ export default function HomeClient({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedSaveUpDay, setSelectedSaveUpDay] = useState<Date | null>(null)
   const [spendAmount, setSpendAmount] = useState('')
+  const [spendNudgeDismissed, setSpendNudgeDismissed] = useState(false)
+  const [editPresetsMode, setEditPresetsMode] = useState(false)
+  const [addPresetOpen, setAddPresetOpen] = useState(false)
+  const [presetName, setPresetName] = useState('')
+  const [presetAmount, setPresetAmount] = useState('')
+  const [paydayCelebrationDismissed, setPaydayCelebrationDismissed] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState('other')
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false)
+  const [recurringFreq, setRecurringFreq] = useState<'weekly'|'monthly'>('monthly')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -87,11 +114,44 @@ export default function HomeClient({
   const typedAmount = parseFloat(spendAmount) || 0
   const totalMonthly = fullBills.reduce((s, b) => s + b.amount, 0)
 
+  function handleCreateRecurring(formData: FormData) {
+    startTransition(async () => {
+      await createRecurringSpend(formData)
+      setRecurringModalOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleDeleteRecurring(id: string) {
+    startTransition(async () => {
+      await deleteRecurringSpend(id)
+      router.refresh()
+    })
+  }
+
+  function handleCreatePreset(formData: FormData) {
+    startTransition(async () => {
+      await createPreset(formData)
+      setPresetName('')
+      setPresetAmount('')
+      setAddPresetOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleDeletePreset(id: string) {
+    startTransition(async () => {
+      await deletePreset(id)
+      router.refresh()
+    })
+  }
+
   function handleSpend(formData: FormData) {
     startTransition(async () => {
       await logSpend(formData)
       setSpendModalOpen(false)
       setSpendAmount('')
+      setSelectedCategory('other')
       router.refresh()
     })
   }
@@ -127,6 +187,23 @@ export default function HomeClient({
 
   return (
     <>
+      {/* Payday celebration overlay */}
+      {isPayday && !paydayCelebrationDismissed && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-white dark:bg-zinc-950 px-8 text-center">
+          <div className="text-6xl mb-6">🎉</div>
+          <h1 className="text-zinc-950 dark:text-white text-2xl font-bold mb-2">Payday!</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-base mb-1">Your bills are covered.</p>
+          <p className={`text-3xl font-bold tabular-nums mt-3 mb-1 ${color}`}>€{allowance.toFixed(2)}/day</p>
+          <p className="text-zinc-400 dark:text-zinc-500 text-sm mb-8">for the next {daysRemaining} days</p>
+          <button
+            onClick={() => setPaydayCelebrationDismissed(true)}
+            className="rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold px-8 py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
+          >
+            Let&apos;s go
+          </button>
+        </div>
+      )}
+
       <main className="min-h-screen bg-white dark:bg-zinc-950 flex flex-col">
 
         <Link
@@ -149,6 +226,36 @@ export default function HomeClient({
             </button>
           )}
 
+
+          {/* A2: Spend nudge */}
+          {!spendNudgeDismissed && spentToday === 0 && new Date().getHours() >= 12 && (
+            <button
+              onClick={() => setSpendModalOpen(true)}
+              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-600 dark:text-zinc-400 flex items-center justify-between gap-2"
+            >
+              <span>Did you spend anything today?</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-zinc-950 dark:text-white font-medium text-xs">Log it →</span>
+                <span
+                  role="button"
+                  onClick={e => { e.stopPropagation(); setSpendNudgeDismissed(true) }}
+                  className="text-zinc-300 dark:text-zinc-700 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+                >
+                  <X size={14} />
+                </span>
+              </div>
+            </button>
+          )}
+          {!spendNudgeDismissed && spentToday > 0 && spentYesterday === 0 && (
+            <button
+              onClick={() => { setSpendNudgeDismissed(true) }}
+              className="w-full max-w-sm rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2.5 text-left text-sm text-zinc-500 dark:text-zinc-500 flex items-center justify-between gap-2"
+            >
+              <span>You didn&apos;t log anything yesterday — did you spend?</span>
+              <X size={14} className="shrink-0 text-zinc-300 dark:text-zinc-700" />
+            </button>
+          )}
+
           {/* B: Greeting + context */}
           <div className="flex flex-col items-center gap-1.5 text-center">
             <p className="text-zinc-950 dark:text-white font-semibold text-lg">{greeting}</p>
@@ -165,6 +272,14 @@ export default function HomeClient({
             )}
           </div>
 
+          {/* C2: Streak badge */}
+          {streak >= 1 && (
+            <div className="flex items-center gap-1.5 text-sm text-amber-500 dark:text-amber-400 font-medium">
+              <span>🔥</span>
+              <span>{streak} {streak === 1 ? 'day' : 'days'} under budget</span>
+            </div>
+          )}
+
           {/* D: Progress bar */}
           <div className="w-full max-w-sm flex flex-col items-center gap-2">
             <p className="text-zinc-500 dark:text-zinc-400 text-sm text-center">
@@ -172,6 +287,13 @@ export default function HomeClient({
             </p>
             <ProgressBar percent={cyclePercent} />
           </div>
+
+          {/* D2: Cycle surplus/deficit */}
+          {Math.abs(cycleSurplus) >= 0.5 && (
+            <p className={`text-sm font-medium tabular-nums ${cycleSurplus >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+              {cycleSurplus >= 0 ? `€${cycleSurplus.toFixed(2)} ahead this cycle` : `€${Math.abs(cycleSurplus).toFixed(2)} over this cycle`}
+            </p>
+          )}
 
           {/* E: Actions */}
           <div className="w-full max-w-sm grid grid-cols-2 gap-2.5">
@@ -203,14 +325,37 @@ export default function HomeClient({
               <Zap size={20} className="text-zinc-500 dark:text-zinc-400" />
               <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">What if?</span>
             </Link>
+            <button
+              onClick={() => setRecurringModalOpen(true)}
+              className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800 col-span-2"
+            >
+              <RefreshCw size={20} className="text-zinc-500 dark:text-zinc-400" />
+              <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Recurring</span>
+            </button>
           </div>
+
+          {/* E2: Category breakdown */}
+          {Object.values(categoryTotals).some(v => v > 0) && (
+            <div className="w-full max-w-sm flex flex-col gap-2">
+              <p className="text-zinc-500 text-xs uppercase tracking-widest">This cycle</p>
+              <div className="flex flex-wrap gap-2">
+                {([['food','🍕'],['transport','🚌'],['fun','🎉'],['other','📦']] as const).map(([cat, emoji]) =>
+                  categoryTotals[cat] > 0 && (
+                    <span key={cat} className="flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                      {emoji} <span className="capitalize">{cat}</span> <span className="font-medium text-zinc-800 dark:text-zinc-200">€{categoryTotals[cat].toFixed(2)}</span>
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
 
           {/* F: Save Up strip */}
           {remainingDays.length > 0 && (
             <div className="w-full max-w-sm flex flex-col gap-3">
               <p className="text-zinc-500 text-xs uppercase tracking-widest">Save Up</p>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {remainingDays.map((day, i) => {
                   const isSelected = selectedSaveUpDay?.getTime() === day.getTime()
                   const isFirst = i === 0
@@ -356,6 +501,83 @@ export default function HomeClient({
                 <X size={18} />
               </button>
             </div>
+            {/* Quick-add presets */}
+            {(presets.length > 0 || editPresetsMode) && (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-wide">Quick-add</span>
+                  <button
+                    type="button"
+                    onClick={() => { setEditPresetsMode(e => !e); setAddPresetOpen(false) }}
+                    className="text-zinc-400 dark:text-zinc-500 text-xs hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    {editPresetsMode ? 'Done' : 'Edit'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {presets.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        if (editPresetsMode) {
+                          handleDeletePreset(p.id)
+                        } else {
+                          setSpendAmount(String(p.amount))
+                          const noteInput = document.querySelector('input[name="note"]') as HTMLInputElement | null
+                          if (noteInput) noteInput.value = p.name
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+                        editPresetsMode
+                          ? 'bg-red-50 dark:bg-red-950/30 text-red-500 border border-red-200 dark:border-red-900/50'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {editPresetsMode && <X size={11} />}
+                      <span>{p.name}</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">€{p.amount.toFixed(2)}</span>
+                    </button>
+                  ))}
+                  {editPresetsMode && !addPresetOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setAddPresetOpen(true)}
+                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                    >
+                      <Plus size={12} /> Add
+                    </button>
+                  )}
+                </div>
+                {addPresetOpen && (
+                  <form action={handleCreatePreset} className="flex gap-2 mt-1">
+                    <input
+                      name="name" required placeholder="Name" value={presetName}
+                      onChange={e => setPresetName(e.target.value)}
+                      className="flex-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+                    />
+                    <div className="relative w-24">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
+                      <input
+                        name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00"
+                        value={presetAmount} onChange={e => setPresetAmount(e.target.value)}
+                        className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 pl-6 pr-2 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+                      />
+                    </div>
+                    <button type="submit" disabled={isPending} className="rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-sm px-3 font-medium transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-100 disabled:opacity-50">Save</button>
+                  </form>
+                )}
+              </div>
+            )}
+            {presets.length === 0 && !editPresetsMode && (
+              <button
+                type="button"
+                onClick={() => setEditPresetsMode(true)}
+                className="text-zinc-400 dark:text-zinc-600 text-xs self-start hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+              >
+                + Add quick-add presets
+              </button>
+            )}
             <form action={handleSpend} className="flex flex-col gap-3">
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
@@ -375,6 +597,18 @@ export default function HomeClient({
                 name="note" type="text" placeholder="What for? (optional)"
                 className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
               />
+              <input type="hidden" name="category" value={selectedCategory} />
+              <div className="flex gap-2 flex-wrap">
+                {([['food','🍕'],['transport','🚌'],['fun','🎉'],['other','📦']] as const).map(([cat, emoji]) => (
+                  <button
+                    key={cat} type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs transition-colors ${selectedCategory === cat ? 'bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-medium' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}
+                  >
+                    {emoji} <span className="capitalize">{cat}</span>
+                  </button>
+                ))}
+              </div>
               <button
                 type="submit" disabled={isPending}
                 className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
@@ -534,22 +768,77 @@ export default function HomeClient({
                   defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.day_of_month : ''}
                   className="w-24 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <option value="" disabled>Day</option>
+                  <option value="">Day</option>
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>Day {d}</option>
+                    <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
               </div>
               <button
                 type="submit" disabled={isPending}
-                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 mt-1"
+                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
               >
-                {isPending ? 'Saving…' : billFormModal.mode === 'add' ? 'Add bill' : 'Save changes'}
+                {isPending ? 'Saving…' : billFormModal?.mode === 'edit' ? 'Save changes' : 'Add bill'}
               </button>
             </form>
           </div>
         </div>
       )}
+
+      {/* Recurring spend modal */}
+      {recurringModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) setRecurringModalOpen(false) }}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col gap-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-zinc-950 dark:text-white font-semibold">Recurring spend</h2>
+              <button onClick={() => setRecurringModalOpen(false)} className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-950 dark:hover:text-white transition-colors"><X size={18} /></button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {recurringItems.length === 0 ? (
+                <p className="text-zinc-400 dark:text-zinc-600 text-sm text-center py-2">No recurring items yet.</p>
+              ) : (
+                recurringItems.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-4 py-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-950 dark:text-white text-sm font-medium truncate">{item.name}</p>
+                      <p className="text-zinc-500 text-xs mt-0.5">
+                        {item.frequency === 'weekly' ? `Every ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][item.day_of_week ?? 0]}` : `Day ${item.day_of_month} monthly`} · €{item.amount.toFixed(2)}
+                      </p>
+                    </div>
+                    <button onClick={() => handleDeleteRecurring(item.id)} disabled={isPending} className="text-zinc-400 dark:text-zinc-600 hover:text-red-400 transition-colors p-2"><Trash2 size={13} /></button>
+                  </div>
+                ))
+              )}
+            </div>
+            <form action={handleCreateRecurring} className="flex flex-col gap-3 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <p className="text-zinc-500 text-xs uppercase tracking-widest">Add recurring</p>
+              <input name="name" required placeholder="Name (e.g. Gym)" className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors" />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
+                  <input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 pl-8 pr-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors" />
+                </div>
+                <select name="frequency" value={recurringFreq} onChange={e => setRecurringFreq(e.target.value as 'weekly'|'monthly')} className="w-28 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer">
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              {recurringFreq === 'weekly' ? (
+                <select name="day_of_week" className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer">
+                  {['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, i) => <option key={i} value={i}>{day}</option>)}
+                </select>
+              ) : (
+                <select name="day_of_month" className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer">
+                  <option value="">Day of month</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              )}
+              <button type="submit" disabled={isPending} className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50">Add</button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </>
   )
 }
