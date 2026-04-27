@@ -117,7 +117,7 @@ export default async function HomePage() {
             </span>
             <span className="text-zinc-300 dark:text-zinc-700 text-sm">·</span>
             <span className="text-zinc-500 dark:text-zinc-400 text-sm">
-              payday {formatPaycheckDate(nextPaycheckDate)}
+              Payday {formatPaycheckDate(nextPaycheckDate)}
             </span>
           </div>
 
