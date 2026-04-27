@@ -37,6 +37,7 @@ export function calcAllowance({
   const py = nextPaycheckDate.getFullYear()
   const sameMonth = m === pm && y === py
 
+  // Deduct ALL bills in this cycle upfront, then divide evenly
   const billsTotal = bills
     .filter(b =>
       sameMonth
@@ -88,12 +89,6 @@ function sumBillsBetween(
   return total
 }
 
-function nextPaycheckAfter(date: Date, paycheckDay: number): Date {
-  const y = date.getFullYear(), m = date.getMonth(), d = date.getDate()
-  if (d < paycheckDay) return new Date(y, m, paycheckDay)
-  return new Date(y, m + 1, paycheckDay)
-}
-
 export function calcForecast({
   balance,
   paycheckDay,
@@ -108,9 +103,7 @@ export function calcForecast({
   bills: Array<{ name: string; amount: number; day_of_month: number }>
 }): ForecastSegment[] {
   const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  const d = now.getDate()
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate()
   const today = new Date(y, m, d)
 
   const paycheck1 =
@@ -119,69 +112,75 @@ export function calcForecast({
       : new Date(y, m + 1, paycheckDay)
   const paycheck2 = new Date(paycheck1.getFullYear(), paycheck1.getMonth() + 1, paycheckDay)
 
-  type RawEvent =
-    | { type: 'bill'; date: Date; name: string; amount: number }
-    | { type: 'paycheck'; date: Date; amount: number }
+  // Current cycle: one flat daily rate (all bills deducted upfront)
+  const { allowance: currentDailyRate, daysRemaining } = calcAllowance({
+    balance, paycheckDay, paycheckAmount, bufferAmount, bills,
+  })
 
-  const events: RawEvent[] = [
-    { type: 'paycheck', date: paycheck1, amount: paycheckAmount },
-    { type: 'paycheck', date: paycheck2, amount: paycheckAmount },
-  ]
+  // Next cycle: all bills in that cycle deducted from paycheck upfront
+  const billsNextCycle = sumBillsBetween(bills, paycheck1, paycheck2)
+  const daysNextCycle = Math.max(1, Math.round((paycheck2.getTime() - paycheck1.getTime()) / 86_400_000))
+  const nextDailyRate = Math.round((paycheckAmount - billsNextCycle - bufferAmount) / daysNextCycle * 100) / 100
 
+  // Collect all bill events between today and paycheck2
+  type BillEvent = { type: 'bill'; date: Date; name: string; amount: number }
+  const billEvents: BillEvent[] = []
   for (const bill of bills) {
     let ey = y, em = m
     for (let i = 0; i < 6; i++) {
       const billDate = new Date(ey, em, bill.day_of_month)
       if (billDate.getTime() >= paycheck2.getTime()) break
       if (billDate.getTime() > today.getTime()) {
-        events.push({ type: 'bill', date: billDate, name: bill.name, amount: bill.amount })
+        billEvents.push({ type: 'bill', date: billDate, name: bill.name, amount: bill.amount })
       }
       em++
       if (em > 11) { em = 0; ey++ }
     }
   }
+  billEvents.sort((a, b) => a.date.getTime() - b.date.getTime())
 
-  events.sort((a, b) => {
-    const diff = a.date.getTime() - b.date.getTime()
-    if (diff !== 0) return diff
-    return a.type === 'paycheck' ? -1 : 1
-  })
+  const billsBefore1 = billEvents.filter(e => e.date.getTime() < paycheck1.getTime())
+  const billsAfter1 = billEvents.filter(e => e.date.getTime() >= paycheck1.getTime())
 
   const segments: ForecastSegment[] = []
-  let periodStart = today
-  let runningBalance = balance
 
-  for (const event of events) {
-    const periodEnd = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() - 1)
+  // 1. Current period — one flat block
+  const currentPeriodEnd = new Date(paycheck1.getFullYear(), paycheck1.getMonth(), paycheck1.getDate() - 1)
+  segments.push({
+    type: 'period',
+    fromDate: today,
+    toDate: currentPeriodEnd,
+    dailyAllowance: currentDailyRate,
+    days: daysRemaining,
+    isCurrentPeriod: true,
+  })
 
-    if (periodEnd.getTime() >= periodStart.getTime()) {
-      const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000) + 1
-      const nextPC = nextPaycheckAfter(periodStart, paycheckDay)
-      const billsBeforeNextPC = sumBillsBetween(bills, periodStart, nextPC)
-      const daysToNextPC = Math.max(1, Math.round((nextPC.getTime() - periodStart.getTime()) / 86_400_000))
-      const dailyAllowance = Math.round((runningBalance - billsBeforeNextPC - bufferAmount) / daysToNextPC * 100) / 100
-      const isCurrentPeriod = today.getTime() >= periodStart.getTime() && today.getTime() <= periodEnd.getTime()
-
-      segments.push({
-        type: 'period',
-        fromDate: new Date(periodStart),
-        toDate: new Date(periodEnd),
-        dailyAllowance,
-        days,
-        isCurrentPeriod,
-      })
-    }
-
-    if (event.type === 'paycheck') {
-      segments.push({ type: 'paycheck', date: event.date, amount: event.amount })
-      runningBalance += event.amount
-      periodStart = new Date(event.date)
-    } else {
-      segments.push({ type: 'bill', date: event.date, name: event.name, amount: event.amount })
-      runningBalance -= event.amount
-      periodStart = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() + 1)
-    }
+  // 2. Any bills due before payday (as warning markers)
+  for (const ev of billsBefore1) {
+    segments.push({ type: 'bill', date: ev.date, name: ev.name, amount: ev.amount })
   }
+
+  // 3. Paycheck 1
+  segments.push({ type: 'paycheck', date: paycheck1, amount: paycheckAmount })
+
+  // 4. Next cycle — one flat block
+  const nextPeriodEnd = new Date(paycheck2.getFullYear(), paycheck2.getMonth(), paycheck2.getDate() - 1)
+  segments.push({
+    type: 'period',
+    fromDate: paycheck1,
+    toDate: nextPeriodEnd,
+    dailyAllowance: nextDailyRate,
+    days: daysNextCycle,
+    isCurrentPeriod: false,
+  })
+
+  // 5. Bills in the next cycle (shown as info — already deducted from rate above)
+  for (const ev of billsAfter1) {
+    segments.push({ type: 'bill', date: ev.date, name: ev.name, amount: ev.amount })
+  }
+
+  // 6. Paycheck 2
+  segments.push({ type: 'paycheck', date: paycheck2, amount: paycheckAmount })
 
   return segments
 }
