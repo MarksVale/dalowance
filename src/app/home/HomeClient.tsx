@@ -32,6 +32,7 @@ type Props = {
   calcParams: { paycheckDay: number; paycheckAmount: number; bufferAmount: number; bills: Bill[] }
   formatPaycheckDate: string
   fullBills: FullBill[]
+  streak: number
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -71,6 +72,7 @@ export default function HomeClient({
   calcParams,
   formatPaycheckDate,
   fullBills,
+  streak,
 }: Props) {
   const [spendModalOpen, setSpendModalOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
@@ -197,6 +199,14 @@ export default function HomeClient({
               </p>
             )}
           </div>
+
+          {/* C2: Streak badge */}
+          {streak >= 1 && (
+            <div className="flex items-center gap-1.5 text-sm text-amber-500 dark:text-amber-400 font-medium">
+              <span>🔥</span>
+              <span>{streak} {streak === 1 ? 'day' : 'days'} under budget</span>
+            </div>
+          )}
 
           {/* D: Progress bar */}
           <div className="w-full max-w-sm flex flex-col items-center gap-2">
