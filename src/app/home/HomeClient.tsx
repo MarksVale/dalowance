@@ -534,4 +534,23 @@ export default function HomeClient({
                   defaultValue={billFormModal.mode === 'edit' ? billFormModal.bill.day_of_month : ''}
                   className="w-24 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-3 text-zinc-950 dark:text-white text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <optio
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit" disabled={isPending}
+                className="w-full rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 font-semibold text-sm py-3 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50"
+              >
+                {isPending ? 'Saving…' : billFormModal?.mode === 'edit' ? 'Save changes' : 'Add bill'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </>
+  )
+}
