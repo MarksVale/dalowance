@@ -118,7 +118,6 @@ export default async function HomePage() {
       contextMessage={contextMessage}
       allowance={allowance}
       color={color}
-      delta={delta}
       daysRemaining={daysRemaining}
       nextPaycheckDate={nextPaycheckDate}
       cyclePercent={cyclePercent}

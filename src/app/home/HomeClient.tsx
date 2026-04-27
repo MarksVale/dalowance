@@ -17,7 +17,6 @@ type Props = {
   contextMessage: { text: string; color: 'emerald' | 'amber' | 'red' | 'zinc' }
   allowance: number
   color: string
-  delta: number | null
   daysRemaining: number
   nextPaycheckDate: Date
   cyclePercent: number
@@ -54,7 +53,6 @@ export default function HomeClient({
   contextMessage,
   allowance,
   color,
-  delta,
   daysRemaining,
   cyclePercent,
   spentToday,
