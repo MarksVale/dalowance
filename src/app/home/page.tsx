@@ -99,7 +99,7 @@ export default async function HomePage() {
         <Settings size={16} />
       </Link>
 
-      <div className="flex-1 flex flex-col items-center px-6 pt-20 pb-10 gap-7">
+      <div className="flex-1 flex flex-col items-center px-6 pt-10 pb-10 gap-7">
 
         {/* The Number block */}
         <div className="flex flex-col items-center gap-3 text-center">
