@@ -129,14 +129,9 @@ export default function HomeClient({
           {/* C: The number */}
           <div className="flex flex-col items-center gap-2 text-center">
             <TheNumber amount={allowance} color={color} />
-            {delta !== null && delta !== 0 && (
-              <p className={`text-sm font-medium ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                {delta > 0 ? '↑' : '↓'} €{Math.abs(delta).toFixed(2)} vs last update
-              </p>
-            )}
             {spentToday > 0 && (
               <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-                Spent today: €{spentToday.toFixed(2)}
+                You&apos;ve spent €{spentToday.toFixed(2)} today
               </p>
             )}
           </div>
