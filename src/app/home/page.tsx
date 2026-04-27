@@ -76,13 +76,23 @@ export default async function HomePage() {
   const daysAgoBalance = Math.floor((Date.now() - new Date(recentBalances[0].recorded_at).getTime()) / 86_400_000)
 
   const todayMidnight = new Date(y, m, d).toISOString()
+  const yesterdayMidnight = new Date(y, m, d - 1).toISOString()
+
   const { data: todaySpendLogs } = await supabase
     .from('spend_logs')
     .select('amount')
     .eq('user_id', user.id)
     .gte('logged_at', todayMidnight)
 
+  const { data: yesterdaySpendLogs } = await supabase
+    .from('spend_logs')
+    .select('amount')
+    .eq('user_id', user.id)
+    .gte('logged_at', yesterdayMidnight)
+    .lt('logged_at', todayMidnight)
+
   const spentToday = (todaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
+  const spentYesterday = (yesterdaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
 
   const forecastSegments = calcForecast({ balance: latestBalance, ...calcParams })
 
@@ -116,6 +126,7 @@ export default async function HomePage() {
       nextPaycheckDate={nextPaycheckDate}
       cyclePercent={cyclePercent}
       spentToday={spentToday}
+      spentYesterday={spentYesterday}
       currentBalance={latestBalance}
       paycheckAmount={calcParams.paycheckAmount}
       forecastSegments={forecastSegments}
