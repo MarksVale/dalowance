@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, LayoutList, Zap, X, Minus } from 'lucide-react'
+import { RefreshCw, LayoutList, Zap, X } from 'lucide-react'
 import { saveBalanceUpdate, logSpend } from './actions'
 
 type Props = {
