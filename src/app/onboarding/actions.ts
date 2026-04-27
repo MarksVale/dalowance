@@ -35,7 +35,7 @@ export async function saveNameStep(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/')
 
-  await supabase.from('profiles').update({ name }).eq('id', user.id)
+  await supabase.from('profiles').upsert({ id: user.id, name }).eq('id', user.id)
   redirect('/onboarding/balance')
 }
 
@@ -75,12 +75,12 @@ export async function saveOnboarding() {
 
   const { error: profileError } = await supabase
     .from('profiles')
-    .update({
+    .upsert({
+      id: user.id,
       paycheck_day: data.paycheck_day,
       paycheck_amount: data.paycheck_amount,
       buffer_amount: data.buffer_amount ?? 0,
     })
-    .eq('id', user.id)
 
   if (profileError) redirect('/onboarding/done?error=save')
 
