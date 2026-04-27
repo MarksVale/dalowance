@@ -6,12 +6,14 @@ import Link from 'next/link'
 import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt, Plus, Pencil, Trash2 } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
 import { createBill, updateBill, deleteBill } from '@/app/bills/actions'
+import { createPreset, deletePreset } from './actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
 import TheNumber from './TheNumber'
 import ProgressBar from './ProgressBar'
 
 type Bill = { name: string; amount: number; day_of_month: number }
+type SpendPreset = { id: string; name: string; amount: number }
 type FullBill = { id: string; name: string; amount: number; day_of_month: number }
 
 type Props = {
@@ -33,6 +35,7 @@ type Props = {
   formatPaycheckDate: string
   fullBills: FullBill[]
   streak: number
+  presets: SpendPreset[]
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -73,6 +76,7 @@ export default function HomeClient({
   formatPaycheckDate,
   fullBills,
   streak,
+  presets,
 }: Props) {
   const [spendModalOpen, setSpendModalOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
@@ -82,6 +86,10 @@ export default function HomeClient({
   const [selectedSaveUpDay, setSelectedSaveUpDay] = useState<Date | null>(null)
   const [spendAmount, setSpendAmount] = useState('')
   const [spendNudgeDismissed, setSpendNudgeDismissed] = useState(false)
+  const [editPresetsMode, setEditPresetsMode] = useState(false)
+  const [addPresetOpen, setAddPresetOpen] = useState(false)
+  const [presetName, setPresetName] = useState('')
+  const [presetAmount, setPresetAmount] = useState('')
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -91,6 +99,23 @@ export default function HomeClient({
 
   const typedAmount = parseFloat(spendAmount) || 0
   const totalMonthly = fullBills.reduce((s, b) => s + b.amount, 0)
+
+  function handleCreatePreset(formData: FormData) {
+    startTransition(async () => {
+      await createPreset(formData)
+      setPresetName('')
+      setPresetAmount('')
+      setAddPresetOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleDeletePreset(id: string) {
+    startTransition(async () => {
+      await deletePreset(id)
+      router.refresh()
+    })
+  }
 
   function handleSpend(formData: FormData) {
     startTransition(async () => {
@@ -399,6 +424,83 @@ export default function HomeClient({
                 <X size={18} />
               </button>
             </div>
+            {/* Quick-add presets */}
+            {(presets.length > 0 || editPresetsMode) && (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 dark:text-zinc-500 text-xs uppercase tracking-wide">Quick-add</span>
+                  <button
+                    type="button"
+                    onClick={() => { setEditPresetsMode(e => !e); setAddPresetOpen(false) }}
+                    className="text-zinc-400 dark:text-zinc-500 text-xs hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    {editPresetsMode ? 'Done' : 'Edit'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {presets.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        if (editPresetsMode) {
+                          handleDeletePreset(p.id)
+                        } else {
+                          setSpendAmount(String(p.amount))
+                          const noteInput = document.querySelector('input[name="note"]') as HTMLInputElement | null
+                          if (noteInput) noteInput.value = p.name
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+                        editPresetsMode
+                          ? 'bg-red-50 dark:bg-red-950/30 text-red-500 border border-red-200 dark:border-red-900/50'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {editPresetsMode && <X size={11} />}
+                      <span>{p.name}</span>
+                      <span className="text-zinc-400 dark:text-zinc-500">€{p.amount.toFixed(2)}</span>
+                    </button>
+                  ))}
+                  {editPresetsMode && !addPresetOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setAddPresetOpen(true)}
+                      className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                    >
+                      <Plus size={12} /> Add
+                    </button>
+                  )}
+                </div>
+                {addPresetOpen && (
+                  <form action={handleCreatePreset} className="flex gap-2 mt-1">
+                    <input
+                      name="name" required placeholder="Name" value={presetName}
+                      onChange={e => setPresetName(e.target.value)}
+                      className="flex-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+                    />
+                    <div className="relative w-24">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
+                      <input
+                        name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00"
+                        value={presetAmount} onChange={e => setPresetAmount(e.target.value)}
+                        className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 pl-6 pr-2 py-2 text-zinc-950 dark:text-white placeholder:text-zinc-400 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-500 transition-colors"
+                      />
+                    </div>
+                    <button type="submit" disabled={isPending} className="rounded-lg bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-sm px-3 font-medium transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-100 disabled:opacity-50">Save</button>
+                  </form>
+                )}
+              </div>
+            )}
+            {presets.length === 0 && !editPresetsMode && (
+              <button
+                type="button"
+                onClick={() => setEditPresetsMode(true)}
+                className="text-zinc-400 dark:text-zinc-600 text-xs self-start hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+              >
+                + Add quick-add presets
+              </button>
+            )}
             <form action={handleSpend} className="flex flex-col gap-3">
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">€</span>
