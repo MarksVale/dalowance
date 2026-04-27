@@ -35,15 +35,19 @@ export default async function HomePage() {
 
   const { data: billsRaw } = await supabase
     .from('bills')
-    .select('name, amount, day_of_month')
+    .select('id, name, amount, day_of_month')
     .eq('user_id', user.id)
     .eq('active', true)
+    .order('day_of_month', { ascending: true })
 
-  const activeBills = (billsRaw ?? []).map(b => ({
+  const fullBills = (billsRaw ?? []).map(b => ({
+    id: b.id as string,
     name: b.name as string,
     amount: Number(b.amount),
     day_of_month: Number(b.day_of_month),
   }))
+
+  const activeBills = fullBills.map(({ name, amount, day_of_month }) => ({ name, amount, day_of_month }))
 
   const calcParams = {
     paycheckDay: profile.paycheck_day!,
@@ -56,7 +60,6 @@ export default async function HomePage() {
   const { allowance, daysRemaining, nextPaycheckDate } = calcAllowance({ balance: latestBalance, ...calcParams })
   const color = allowanceColor(allowance, calcParams.paycheckAmount)
 
-  // Pay cycle progress
   const now = new Date()
   const y = now.getFullYear()
   const m = now.getMonth()
@@ -69,10 +72,8 @@ export default async function HomePage() {
   const elapsedDays = Math.round((new Date(y, m, d).getTime() - prevPaycheckDate.getTime()) / 86_400_000)
   const cyclePercent = Math.min(100, Math.max(0, (elapsedDays / cycleDays) * 100))
 
-  // Days since balance was last updated
   const daysAgoBalance = Math.floor((Date.now() - new Date(recentBalances[0].recorded_at).getTime()) / 86_400_000)
 
-  // Spent today
   const todayMidnight = new Date(y, m, d).toISOString()
   const { data: todaySpendLogs } = await supabase
     .from('spend_logs')
@@ -82,10 +83,8 @@ export default async function HomePage() {
 
   const spentToday = (todaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
 
-  // Forecast segments
   const forecastSegments = calcForecast({ balance: latestBalance, ...calcParams })
 
-  // Remaining days for save-up strip (tomorrow → day before payday)
   const tomorrow = new Date(y, m, d + 1)
   const dayBeforePaycheck = new Date(nextPaycheckDate.getFullYear(), nextPaycheckDate.getMonth(), nextPaycheckDate.getDate() - 1)
   const remainingDays: Date[] = []
@@ -95,7 +94,6 @@ export default async function HomePage() {
     cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1)
   }
 
-  // Greeting and context message
   const currentHour = now.getHours()
   const greeting = getGreeting(profile.name ?? null, currentHour)
   const contextMessage = getContextMessage({
@@ -124,6 +122,7 @@ export default async function HomePage() {
       daysAgoBalance={daysAgoBalance}
       calcParams={calcParams}
       formatPaycheckDate={formatPaycheckDate(nextPaycheckDate)}
+      fullBills={fullBills}
     />
   )
 }
