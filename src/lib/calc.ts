@@ -37,7 +37,6 @@ export function calcAllowance({
   const py = nextPaycheckDate.getFullYear()
   const sameMonth = m === pm && y === py
 
-  // Bills that will auto-deduct between now and paycheck day (exclusive on both ends)
   const billsTotal = bills
     .filter(b =>
       sameMonth
@@ -65,29 +64,35 @@ export function formatAllowance(amount: number): string {
   return `${sign}€${Math.abs(amount).toFixed(2)}`
 }
 
-export type ForecastPeriod = {
-  type: 'period'
-  fromDate: Date
-  toDate: Date
-  dailyAllowance: number
-  days: number
-  isToday: boolean
+export type ForecastSegment =
+  | { type: 'period'; fromDate: Date; toDate: Date; dailyAllowance: number; days: number; isCurrentPeriod: boolean }
+  | { type: 'bill'; date: Date; name: string; amount: number }
+  | { type: 'paycheck'; date: Date; amount: number }
+
+function sumBillsBetween(
+  bills: Array<{ amount: number; day_of_month: number }>,
+  from: Date,
+  to: Date
+): number {
+  let total = 0
+  for (const bill of bills) {
+    let ey = from.getFullYear(), em = from.getMonth()
+    for (let i = 0; i < 4; i++) {
+      const bd = new Date(ey, em, bill.day_of_month)
+      if (bd.getTime() >= to.getTime()) break
+      if (bd.getTime() > from.getTime()) total += bill.amount
+      em++
+      if (em > 11) { em = 0; ey++ }
+    }
+  }
+  return total
 }
 
-export type ForecastBill = {
-  type: 'bill'
-  date: Date
-  name: string
-  amount: number
+function nextPaycheckAfter(date: Date, paycheckDay: number): Date {
+  const y = date.getFullYear(), m = date.getMonth(), d = date.getDate()
+  if (d < paycheckDay) return new Date(y, m, paycheckDay)
+  return new Date(y, m + 1, paycheckDay)
 }
-
-export type ForecastPaycheck = {
-  type: 'paycheck'
-  date: Date
-  amount: number
-}
-
-export type ForecastSegment = ForecastPeriod | ForecastBill | ForecastPaycheck
 
 export function calcForecast({
   balance,
@@ -128,7 +133,7 @@ export function calcForecast({
     for (let i = 0; i < 6; i++) {
       const billDate = new Date(ey, em, bill.day_of_month)
       if (billDate.getTime() >= paycheck2.getTime()) break
-      if (billDate.getMonth() === em && billDate.getTime() > today.getTime()) {
+      if (billDate.getTime() > today.getTime()) {
         events.push({ type: 'bill', date: billDate, name: bill.name, amount: bill.amount })
       }
       em++
@@ -142,52 +147,138 @@ export function calcForecast({
     return a.type === 'paycheck' ? -1 : 1
   })
 
-  const billAmount = (e: RawEvent) => (e as { type: 'bill'; amount: number }).amount
-
-  // Pre-compute a single daily rate per cycle so all periods within a cycle show the same number.
-  // Cycle 0: today → paycheck1 (uses current real balance)
-  const daysInCycle0 = Math.max(1, Math.round((paycheck1.getTime() - today.getTime()) / 86_400_000))
-  const billsInCycle0 = events
-    .filter(e => e.type === 'bill' && e.date.getTime() > today.getTime() && e.date.getTime() < paycheck1.getTime())
-    .reduce((sum, e) => sum + billAmount(e), 0)
-  const dailyCycle0 = Math.round(((balance - billsInCycle0 - bufferAmount) / daysInCycle0) * 100) / 100
-
-  // Cycle 1: paycheck1 → paycheck2 (uses paycheckAmount, all bills in that window)
-  const daysInCycle1 = Math.max(1, Math.round((paycheck2.getTime() - paycheck1.getTime()) / 86_400_000))
-  const billsInCycle1 = events
-    .filter(e => e.type === 'bill' && e.date.getTime() >= paycheck1.getTime() && e.date.getTime() < paycheck2.getTime())
-    .reduce((sum, e) => sum + billAmount(e), 0)
-  const dailyCycle1 = Math.round(((paycheckAmount - billsInCycle1 - bufferAmount) / daysInCycle1) * 100) / 100
-
   const segments: ForecastSegment[] = []
   let periodStart = today
+  let runningBalance = balance
 
   for (const event of events) {
     const periodEnd = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() - 1)
 
     if (periodEnd.getTime() >= periodStart.getTime()) {
       const days = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86_400_000) + 1
-      const inCycle1 = periodStart.getTime() >= paycheck1.getTime()
+      const nextPC = nextPaycheckAfter(periodStart, paycheckDay)
+      const billsBeforeNextPC = sumBillsBetween(bills, periodStart, nextPC)
+      const daysToNextPC = Math.max(1, Math.round((nextPC.getTime() - periodStart.getTime()) / 86_400_000))
+      const dailyAllowance = Math.round((runningBalance - billsBeforeNextPC - bufferAmount) / daysToNextPC * 100) / 100
+      const isCurrentPeriod = today.getTime() >= periodStart.getTime() && today.getTime() <= periodEnd.getTime()
+
       segments.push({
         type: 'period',
         fromDate: new Date(periodStart),
         toDate: new Date(periodEnd),
-        dailyAllowance: inCycle1 ? dailyCycle1 : dailyCycle0,
+        dailyAllowance,
         days,
-        isToday: periodStart.getTime() === today.getTime(),
+        isCurrentPeriod,
       })
     }
 
     if (event.type === 'paycheck') {
       segments.push({ type: 'paycheck', date: event.date, amount: event.amount })
+      runningBalance += event.amount
       periodStart = new Date(event.date)
     } else {
       segments.push({ type: 'bill', date: event.date, name: event.name, amount: event.amount })
+      runningBalance -= event.amount
       periodStart = new Date(event.date.getFullYear(), event.date.getMonth(), event.date.getDate() + 1)
     }
   }
 
   return segments
+}
+
+export function calcSaveUpAllowance(params: {
+  balance: number
+  paycheckDay: number
+  paycheckAmount: number
+  bufferAmount: number
+  bills: Array<{ name: string; amount: number; day_of_month: number }>
+  targetDate: Date
+}): { dailyAllowance: number; daysSkipped: number } {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(params.targetDate.getFullYear(), params.targetDate.getMonth(), params.targetDate.getDate())
+
+  const daysSkipped = Math.max(0, Math.round((target.getTime() - today.getTime()) / 86_400_000))
+
+  const billsBetweenNowAndTarget = sumBillsBetween(params.bills, today, target)
+
+  const ty = target.getFullYear(), tm = target.getMonth(), td = target.getDate()
+  const nextPCFromTarget =
+    td < params.paycheckDay
+      ? new Date(ty, tm, params.paycheckDay)
+      : new Date(ty, tm + 1, params.paycheckDay)
+
+  const billsTargetToPaycheck = sumBillsBetween(params.bills, target, nextPCFromTarget)
+  const daysFromTargetToPaycheck = Math.max(1, Math.round((nextPCFromTarget.getTime() - target.getTime()) / 86_400_000))
+
+  const dailyAllowance = Math.round(
+    (params.balance - billsBetweenNowAndTarget - billsTargetToPaycheck - params.bufferAmount)
+    / daysFromTargetToPaycheck * 100
+  ) / 100
+
+  return { dailyAllowance, daysSkipped }
+}
+
+export function getContextMessage(params: {
+  allowance: number
+  paycheckAmount: number
+  daysRemaining: number
+  daysAgoBalance: number
+  paycheckDay: number
+  bills: Array<{ name: string; day_of_month: number }>
+}): { text: string; color: 'emerald' | 'amber' | 'red' | 'zinc' } {
+  const now = new Date()
+  const today = now.getDate()
+
+  if (today === params.paycheckDay) {
+    return { text: 'Payday! Sync your balance to start fresh.', color: 'emerald' }
+  }
+
+  if (params.daysAgoBalance > 1) {
+    return {
+      text: `Your balance is ${params.daysAgoBalance} days old — sync it for the real number.`,
+      color: 'amber',
+    }
+  }
+
+  const upcomingBills = params.bills
+    .map(b => {
+      const billDay = b.day_of_month
+      let daysUntil = billDay - today
+      if (daysUntil < 0) daysUntil += 31
+      return { name: b.name, daysUntil }
+    })
+    .filter(b => b.daysUntil <= 2)
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+
+  if (upcomingBills.length > 0) {
+    const nearest = upcomingBills[0]
+    const dayLabel = nearest.daysUntil === 0 ? 'today' : nearest.daysUntil === 1 ? 'tomorrow' : 'in 2 days'
+    return { text: `Heads up — ${nearest.name} is due ${dayLabel}.`, color: 'amber' }
+  }
+
+  if (params.allowance < 0) {
+    return { text: "You're over budget. Cut back to recover by payday.", color: 'red' }
+  }
+
+  if (params.daysRemaining === 1) {
+    return { text: 'Last day before payday. Make it count.', color: 'zinc' }
+  }
+
+  const timeframe = params.daysRemaining <= 7 ? 'this week' : 'this month'
+  const ratio = params.allowance / (params.paycheckAmount > 0 ? params.paycheckAmount / 30 : 1)
+
+  if (ratio >= 0.7) return { text: `You're looking good ${timeframe}.`, color: 'emerald' }
+  if (ratio >= 0.3) return { text: `Getting tight ${timeframe} — pace yourself today.`, color: 'amber' }
+  return { text: `Running low ${timeframe}. Every euro counts.`, color: 'red' }
+}
+
+export function getGreeting(name: string | null, hour: number): string {
+  const suffix = name ? `, ${name}` : ''
+  if (hour >= 6 && hour < 12) return `Good morning${suffix}.`
+  if (hour >= 12 && hour < 17) return `Good afternoon${suffix}.`
+  if (hour >= 17 && hour < 22) return `Good evening${suffix}.`
+  return `Hey${suffix}.`
 }
 
 export function formatPaycheckDate(date: Date): string {

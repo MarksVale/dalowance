@@ -20,13 +20,8 @@ export async function POST(request: NextRequest) {
       const msg = encodeURIComponent(error.message)
       return NextResponse.redirect(`${origin}/?mode=signup&error=${msg}`, { status: 303 })
     }
-    // Auto sign in after signup (works if email confirmation is disabled)
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      const encoded = encodeURIComponent(email)
-      return NextResponse.redirect(`${origin}/?mode=signup&status=check-email&email=${encoded}`, { status: 303 })
-    }
-    return NextResponse.redirect(`${origin}/onboarding/balance`, { status: 303 })
+    const encoded = encodeURIComponent(email)
+    return NextResponse.redirect(`${origin}/?status=check-email&email=${encoded}`, { status: 303 })
   }
 
   // Sign in

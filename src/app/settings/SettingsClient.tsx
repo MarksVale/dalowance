@@ -13,12 +13,14 @@ type BillModal = { mode: 'add' } | { mode: 'edit'; bill: Bill } | null
 
 export default function SettingsClient({
   email,
+  name,
   paycheckDay,
   paycheckAmount,
   bufferAmount,
   bills,
 }: {
   email: string
+  name: string
   paycheckDay: number
   paycheckAmount: number
   bufferAmount: number
@@ -111,10 +113,21 @@ export default function SettingsClient({
           </div>
         </section>
 
-        {/* Pay cycle */}
+        {/* Paycheck */}
         <section className="flex flex-col gap-3">
-          <h2 className="text-zinc-500 text-xs uppercase tracking-wider font-medium">Pay cycle</h2>
+          <h2 className="text-zinc-500 text-xs uppercase tracking-wider font-medium">Paycheck</h2>
           <form action={handleSaveProfile} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-zinc-500 text-xs uppercase tracking-wider">Name</label>
+              <input
+                name="name"
+                type="text"
+                defaultValue={name}
+                placeholder="Your first name"
+                maxLength={40}
+                className="w-full rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-zinc-950 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition-colors"
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <label className="text-zinc-500 text-xs uppercase tracking-wider">Payday</label>
               <DayPicker defaultValue={paycheckDay} />

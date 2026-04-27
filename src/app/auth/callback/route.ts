@@ -11,7 +11,26 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // If next param is set (e.g. from reset-password flow), use it directly
+      if (searchParams.get('next')) {
+        return NextResponse.redirect(`${origin}${next}`)
+      }
+
+      // Otherwise check if name is set for onboarding routing
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', user.id)
+          .single()
+
+        if (!profile?.name) {
+          return NextResponse.redirect(`${origin}/onboarding/name`)
+        }
+      }
+
+      return NextResponse.redirect(`${origin}/home`)
     }
   }
 

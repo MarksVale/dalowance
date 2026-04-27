@@ -10,7 +10,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('paycheck_day, paycheck_amount, buffer_amount')
+    .select('paycheck_day, paycheck_amount, buffer_amount, name')
     .eq('id', user.id)
     .single()
 
@@ -26,6 +26,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       email={user.email ?? ''}
+      name={profile.name ?? ''}
       paycheckDay={profile.paycheck_day}
       paycheckAmount={Number(profile.paycheck_amount)}
       bufferAmount={Number(profile.buffer_amount ?? 0)}

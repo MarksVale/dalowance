@@ -26,6 +26,19 @@ async function patchCookie(patch: Partial<OnboardingData>) {
   store.set(COOKIE, JSON.stringify({ ...prev, ...patch }), OPTS)
 }
 
+export async function saveNameStep(formData: FormData) {
+  const raw = formData.get('name')?.toString() ?? ''
+  const name = raw.trim().slice(0, 40)
+  if (!name) return
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/')
+
+  await supabase.from('profiles').update({ name }).eq('id', user.id)
+  redirect('/onboarding/balance')
+}
+
 export async function saveBalanceStep(formData: FormData) {
   const balance = parseFloat(formData.get('balance') as string)
   if (isNaN(balance)) return
