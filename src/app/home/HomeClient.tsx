@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Minus, RefreshCw, Banknote, Receipt, Settings, X } from 'lucide-react'
+import { Minus, RefreshCw, LayoutList, Zap, X } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
@@ -143,21 +143,35 @@ export default function HomeClient({
           </div>
 
           {/* E: Actions */}
-          <div className="w-full max-w-sm flex gap-2.5">
+          <div className="w-full max-w-sm grid grid-cols-2 gap-2.5">
             <button
               onClick={() => setSpendModalOpen(true)}
-              className="flex-[2] rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform"
+              className="rounded-2xl bg-zinc-950 dark:bg-white flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform"
             >
               <Minus size={20} className="text-white dark:text-zinc-950" />
               <span className="text-white dark:text-zinc-950 text-sm font-medium">I spent</span>
             </button>
             <button
               onClick={() => setSyncModalOpen(true)}
-              className="flex-1 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+              className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
             >
               <RefreshCw size={20} className="text-zinc-500 dark:text-zinc-400" />
               <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Sync</span>
             </button>
+            <Link
+              href="/settings"
+              className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <LayoutList size={20} className="text-zinc-500 dark:text-zinc-400" />
+              <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">Bills</span>
+            </Link>
+            <Link
+              href="/simulate"
+              className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex flex-col items-center justify-center gap-2 py-4 active:scale-[0.97] transition-transform hover:bg-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <Zap size={20} className="text-zinc-500 dark:text-zinc-400" />
+              <span className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">What if?</span>
+            </Link>
           </div>
 
           {/* F: Save Up strip */}
