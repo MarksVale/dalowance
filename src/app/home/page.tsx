@@ -94,6 +94,34 @@ export default async function HomePage() {
   const spentToday = (todaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
   const spentYesterday = (yesterdaySpendLogs ?? []).reduce((s, l) => s + Number(l.amount), 0)
 
+  // Spending streak: consecutive complete days where daily spend < allowance
+  const cycleStartIso = prevPaycheckDate.toISOString()
+  const { data: cycleLogs } = await supabase
+    .from('spend_logs')
+    .select('amount, logged_at')
+    .eq('user_id', user.id)
+    .gte('logged_at', cycleStartIso)
+    .lt('logged_at', todayMidnight)
+
+  const spendByDay: Record<string, number> = {}
+  for (const log of cycleLogs ?? []) {
+    const day = new Date(log.logged_at as string).toLocaleDateString('en-CA') // YYYY-MM-DD in local
+    spendByDay[day] = (spendByDay[day] ?? 0) + Number(log.amount)
+  }
+
+  let streak = 0
+  let checkDate = new Date(y, m, d - 1) // start from yesterday
+  while (checkDate >= prevPaycheckDate) {
+    const key = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`
+    const daySpend = spendByDay[key] ?? 0
+    if (daySpend < allowance) {
+      streak++
+      checkDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate() - 1)
+    } else {
+      break
+    }
+  }
+
   const forecastSegments = calcForecast({ balance: latestBalance, ...calcParams })
 
   const tomorrow = new Date(y, m, d + 1)
@@ -135,6 +163,7 @@ export default async function HomePage() {
       calcParams={calcParams}
       formatPaycheckDate={formatPaycheckDate(nextPaycheckDate)}
       fullBills={fullBills}
+      streak={streak}
     />
   )
 }
