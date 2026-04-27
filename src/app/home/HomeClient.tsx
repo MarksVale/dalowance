@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Minus, RefreshCw, LayoutList, Zap, X } from 'lucide-react'
+import { Minus, RefreshCw, LayoutList, Zap, X, Settings, Banknote, Receipt } from 'lucide-react'
 import { logSpend, saveBalanceUpdate } from './actions'
 import { calcSaveUpAllowance, allowanceColor } from '@/lib/calc'
 import type { ForecastSegment } from '@/lib/calc'
@@ -372,8 +372,4 @@ export default function HomeClient({
               </button>
             </form>
           </div>
-        </div>
-      )}
-    </>
-  )
-}
+        <
